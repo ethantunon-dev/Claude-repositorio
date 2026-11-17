@@ -24,6 +24,8 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html manifest.webmanifest sw.js .nojekyll css js icons fonts _site/
+          mkdir _site/planificador
+          cp -r planificador/index.html planificador/manifest.webmanifest planificador/sw.js planificador/css planificador/js planificador/icons planificador/fonts _site/planificador/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

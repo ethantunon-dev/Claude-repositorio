@@ -1,5 +1,5 @@
 // Service worker de Escáner Libre: todo desde caché para funcionar sin conexión.
-const VERSION = 'v1.1.0';
+const VERSION = 'v1.1.1';
 const SHELL = 'escaner-shell-' + VERSION;
 const CDN = 'escaner-cdn-v1'; // URLs con versión fija: inmutables, se conservan entre versiones
 
@@ -45,6 +45,8 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
 
   if (url.origin === location.origin) {
+    // Cronograma (./planificador/) es otra app con su propio service worker: no tocar sus páginas.
+    if (url.pathname.startsWith(new URL('./planificador/', self.registration.scope).pathname)) return;
     if (req.mode === 'navigate') {
       e.respondWith(caches.match('./index.html', { cacheName: SHELL }).then(r => r || fetch(req)));
       return;
