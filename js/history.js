@@ -38,6 +38,7 @@ export async function initHistory() {
 
 async function setMateria(m) {
   materia = m; await kv.set('materia', m); renderMaterias();
+  window.dispatchEvent(new Event('docs-changed'));
 }
 export const getMateria = () => materia;
 
@@ -85,12 +86,13 @@ export async function saveDoc(blob, { name, pages = 0, thumb = '' } = {}) {
 }
 
 export async function renderHistory() {
+  window.dispatchEvent(new Event('docs-changed'));
   const all = (await docs.all()).sort((a, b) => b.created - a.created);
   $('#histList').innerHTML = all.map(d => `
     <div class="hitem" data-id="${d.id}">
       ${d.thumb ? `<img src="${d.thumb}" alt="">` : `<div class="ph"><svg><use href="#i-pdf"/></svg></div>`}
       <div><div class="name">${esc(d.name)}</div>
-        <div class="meta">${new Date(d.created).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' })} · ${d.pages ? d.pages + (d.pages === 1 ? ' pág.' : ' págs.') + ' · ' : ''}${fmtBytes(d.size)}</div></div>
+        <div class="meta">${new Date(d.created).toLocaleString('es', { dateStyle: 'medium', timeStyle: 'short' })}<br>${d.pages ? d.pages + (d.pages === 1 ? ' hoja, ' : ' hojas, ') : ''}${fmtBytes(d.size)}</div></div>
       <div class="acts">
         <button class="btn primary" data-a="share"><svg><use href="#i-share"/></svg>Compartir</button>
         <button class="btn" data-a="dl"><svg><use href="#i-dl"/></svg>Descargar</button>
@@ -99,7 +101,7 @@ export async function renderHistory() {
     </div>`).join('');
   try {
     const est = await navigator.storage?.estimate?.();
-    if (est) $('#storageInfo').textContent = `${all.length} documentos · espacio usado ${fmtBytes(est.usage || 0)}`;
+    if (est) $('#storageInfo').textContent = `${all.length} ${all.length === 1 ? 'documento' : 'documentos'}, ${fmtBytes(est.usage || 0)} usados en este teléfono`;
   } catch { }
 }
 

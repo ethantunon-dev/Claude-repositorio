@@ -43,6 +43,7 @@ Foto de pizarra → PDF en 4 toques: **Cámara → disparar → Aceptar → PDF*
 | `sw.js` | Service worker: guarda la app y las librerías en caché. |
 | `manifest.webmanifest` | Nombre, colores e íconos para instalar la app. |
 | `icons/` | Íconos de la app (SVG, 192, 512, maskable y Apple). |
+| `fonts/` | Tipografía Archivo (licencia OFL), incluida para que funcione sin conexión. |
 | `.github/workflows/pages.yml` | Publica la app en GitHub Pages en cada push. |
 | `tests/` | Muestras sintéticas y prueba automática de extremo a extremo (no se publica). |
 

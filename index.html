@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Escáner Libre</title>
   <meta name="description" content="Escanea pizarras, cuadernos y documentos a PDF. Gratis, sin cuenta, sin anuncios y sin conexión.">
-  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0b1416" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#E6EFE0" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16251E" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -16,6 +16,7 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preload" href="fonts/archivo.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/styles.css">
   <script>
     // tema antes de pintar para evitar parpadeo
@@ -66,19 +67,24 @@
   <main>
     <!-- ============ ESCANEAR ============ -->
     <section id="view-scan" class="view active" aria-label="Escanear">
-      <div class="row materia-row">
-        <label for="materiaSel">Materia</label>
-        <select id="materiaSel" class="materia-sel"></select>
+      <!-- Cajetín, como el de los planos: materia, hojas y nombre del próximo PDF -->
+      <div class="cajetin">
+        <label class="cj cj-materia"><span class="cj-k">Materia</span>
+          <select id="materiaSel" aria-label="Materia"></select></label>
+        <div class="cj cj-hojas"><span class="cj-k">Hojas</span><b id="cjHojas">0</b></div>
+        <div class="cj cj-file"><span class="cj-k">Se guardará como</span><b id="cjFile">…</b></div>
       </div>
 
       <div id="scanEmpty" class="empty-hero">
-        <p class="hero-title">Pizarra, cuaderno o documento → PDF</p>
-        <p class="muted">Todo se procesa en tu teléfono. Sin cuenta, sin anuncios, sin marca de agua.</p>
-        <div class="hero-actions">
-          <button class="big-btn primary" data-act="camera"><svg><use href="#i-cam"/></svg>Cámara</button>
-          <button class="big-btn" data-act="gallery"><svg><use href="#i-img"/></svg>Galería</button>
-        </div>
+        <button class="visor" data-act="camera">
+          <span class="vc tl"></span><span class="vc tr"></span><span class="vc br"></span><span class="vc bl"></span>
+          <svg><use href="#i-cam"/></svg>
+          <b>Tomar foto</b>
+          <span>Pizarra, cuaderno u hoja</span>
+        </button>
+        <button class="big-btn wide" data-act="gallery"><svg><use href="#i-img"/></svg>Elegir fotos de la galería</button>
         <button class="link-btn" data-act="sysCamera">Usar la cámara del sistema</button>
+        <p class="hero-note">Todo se procesa en tu teléfono: sin cuenta, sin anuncios y sin marca de agua.</p>
       </div>
 
       <div id="pageList" class="page-grid" aria-live="polite"></div>
@@ -97,8 +103,8 @@
 
     <!-- ============ OCR ============ -->
     <section id="view-ocr" class="view" aria-label="Texto (OCR)">
-      <div class="note">✍️ La letra <b>manuscrita</b> puede reconocerse mal. Con letra <b>impresa</b> el resultado es mucho mejor. Todo se procesa en tu teléfono.</div>
-      <h2 class="h">1. Elige la página</h2>
+      <div class="note">La letra <b>manuscrita</b> puede reconocerse mal. Con letra <b>impresa</b> el resultado es mucho mejor. Todo se procesa en tu teléfono.</div>
+      <h2 class="h">Página</h2>
       <div id="ocrSources" class="thumb-strip"></div>
       <div class="row gap">
         <button class="btn" id="ocrPick"><svg><use href="#i-img"/></svg>Imagen</button>
@@ -108,7 +114,7 @@
       <input id="ocrCam" type="file" accept="image/*" capture="environment" hidden>
       <img id="ocrPreview" class="ocr-preview" alt="Página seleccionada" hidden>
 
-      <h2 class="h">2. Idioma</h2>
+      <h2 class="h">Idioma del texto</h2>
       <div class="segmented" role="radiogroup" id="ocrLang">
         <button role="radio" aria-checked="true" data-lang="spa">Español</button>
         <button role="radio" aria-checked="false" data-lang="eng">English</button>
@@ -119,7 +125,7 @@
       <p id="ocrCacheInfo" class="small muted"></p>
 
       <div id="ocrResult" hidden>
-        <h2 class="h">3. Texto</h2>
+        <h2 class="h">Texto reconocido</h2>
         <textarea id="ocrText" rows="10" spellcheck="false"></textarea>
         <div class="row gap">
           <button class="btn" id="ocrCopy"><svg><use href="#i-copy"/></svg>Copiar</button>
@@ -155,9 +161,9 @@
         <input id="compFile" type="file" accept="application/pdf,.pdf" hidden>
         <div id="compInfo" class="card" hidden></div>
         <div class="levels" role="radiogroup" id="compLevels">
-          <button role="radio" aria-checked="false" data-level="alta"><b>Alta</b><span>150 ppp · se ve casi igual</span></button>
-          <button role="radio" aria-checked="true" data-level="media"><b>Media</b><span>120 ppp · buen equilibrio</span></button>
-          <button role="radio" aria-checked="false" data-level="whatsapp"><b>WhatsApp / Teams</b><span>~100 ppp · lo más liviano</span></button>
+          <button role="radio" aria-checked="false" data-level="alta"><b>Alta</b><span>150 ppp, se ve casi igual</span></button>
+          <button role="radio" aria-checked="true" data-level="media"><b>Media</b><span>120 ppp, buen equilibrio</span></button>
+          <button role="radio" aria-checked="false" data-level="whatsapp"><b>WhatsApp / Teams</b><span>~100 ppp, lo más liviano</span></button>
         </div>
         <button class="big-btn primary wide" id="compRun" disabled>Comprimir</button>
         <div id="compProgress" class="progress" hidden><div class="bar"></div><span class="ptext"></span></div>

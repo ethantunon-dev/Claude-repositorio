@@ -29,6 +29,7 @@ export async function initScan() {
     else if (a === 'clearPages') clearPages();
   });
   $('#pageList').addEventListener('click', onPageListClick);
+  window.addEventListener('docs-changed', updateCajetin);
   initCrop();
   initPageView();
   initCamera();
@@ -50,7 +51,7 @@ function renderPages() {
     <div class="pcard" data-id="${p.id}">
       <button class="thumb" data-a="view" aria-label="Ver página ${i + 1}">
         ${p.thumb ? `<img src="${p.thumb}" alt="">` : ''}
-        <span class="num">${i + 1}</span>
+        <span class="num">Hoja ${i + 1}</span>
         <span class="tag">${esc(FILTERS[p.filter] || '')}</span>
         ${pending.has(p.id) ? '<span class="busy-dot"><span class="spinner" style="width:28px;height:28px;border-width:4px"></span></span>' : ''}
       </button>
@@ -62,6 +63,12 @@ function renderPages() {
       </div>
     </div>`).join('');
   $('#pdfBtn span').textContent = pages.length > 1 ? `PDF (${pages.length})` : 'PDF';
+  updateCajetin();
+}
+
+export async function updateCajetin() {
+  $('#cjHojas').textContent = pages.length;
+  try { $('#cjFile').textContent = await nextName('pdf'); } catch { }
 }
 
 async function onPageListClick(e) {
@@ -176,24 +183,69 @@ function initCamera() {
   };
 }
 
+// De la más exigente a la más simple: algunos teléfonos rechazan resoluciones altas.
+const CAM_CONSTRAINTS = [
+  { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+  { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+  { facingMode: 'environment' },
+  true,
+];
+
 async function openCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) return fromSystemCamera();
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return cameraError({ name: 'NoSoportado' });
   $('#cameraView').hidden = false;
-  $('#camCount').textContent = pages.length ? `${pages.length} pág.` : '';
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } },
-    });
-    track = stream.getVideoTracks()[0];
-    const v = $('#camVideo'); v.srcObject = stream; await v.play().catch(() => { });
-    try { $('#camTorch').hidden = !track.getCapabilities?.().torch; } catch { $('#camTorch').hidden = true; }
-  } catch (e) {
-    console.warn(e);
-    closeCamera();
-    toast('No se pudo abrir la cámara aquí; se usará la del sistema');
-    fromSystemCamera();
+  $('#camCount').textContent = pages.length ? `${pages.length} ${pages.length === 1 ? 'hoja' : 'hojas'}` : '';
+  let lastErr = null;
+  for (const video of CAM_CONSTRAINTS) {
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video }); break; }
+    catch (e) {
+      lastErr = e; console.warn('getUserMedia', e.name, e.message);
+      // permiso denegado o sin cámara: no tiene sentido seguir probando
+      if (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError') break;
+    }
   }
+  if (!stream) { closeCamera(); return cameraError(lastErr || {}); }
+  track = stream.getVideoTracks()[0];
+  const v = $('#camVideo'); v.srcObject = stream;
+  await v.play().catch(() => { });
+  try { $('#camTorch').hidden = !track.getCapabilities?.().torch; } catch { $('#camTorch').hidden = true; }
+  // si en 5 s no llega imagen, la cámara está ocupada o bloqueada
+  const ok = await new Promise(res => {
+    if (v.videoWidth) return res(true);
+    const t = setTimeout(() => res(false), 5000);
+    v.addEventListener('loadeddata', () => { clearTimeout(t); res(true); }, { once: true });
+  });
+  if (!ok && stream) { closeCamera(); cameraError({ name: 'SinImagen' }); }
+}
+
+// Explica qué pasó y ofrece la cámara del sistema (con un toque, que el teléfono sí permite).
+function cameraError(e) {
+  const why = {
+    NotAllowedError: 'El permiso de cámara está bloqueado para esta página.',
+    SecurityError: 'El permiso de cámara está bloqueado para esta página.',
+    NotFoundError: 'No se encontró ninguna cámara en este dispositivo.',
+    NotReadableError: 'Otra app está usando la cámara. Ciérrala e inténtalo de nuevo.',
+    AbortError: 'Otra app está usando la cámara. Ciérrala e inténtalo de nuevo.',
+    SinImagen: 'La cámara no envió imagen. Puede estar ocupada por otra app.',
+    NoSoportado: 'Este navegador no permite usar la cámara dentro de la página.',
+  }[e.name] || 'No se pudo abrir la cámara dentro de la app.';
+  const blocked = e.name === 'NotAllowedError' || e.name === 'SecurityError';
+  const b = openSheet(`<h3>No se pudo abrir la cámara</h3>
+    <p>${esc(why)}</p>
+    ${blocked ? `<p class="small muted">Para permitirla: toca el ícono junto a la dirección (candado o ajustes) → Permisos → Cámara → Permitir.
+      Si la app está instalada: mantén presionado su ícono → Información → Permisos → Cámara.</p>` : ''}
+    <div class="stack">
+      <button class="btn primary" data-r="sys"><svg><use href="#i-cam"/></svg>Usar la cámara del sistema</button>
+      <button class="btn" data-r="retry">Intentar otra vez</button>
+      <button class="btn ghost" data-r="close">Cerrar</button>
+    </div>
+    <p class="small muted">Código: ${esc(e.name || 'desconocido')}</p>`);
+  b.addEventListener('click', ev => {
+    const r = ev.target.closest('[data-r]')?.dataset.r; if (!r) return;
+    closeSheet();
+    if (r === 'sys') fromSystemCamera();
+    else if (r === 'retry') openCamera();
+  });
 }
 
 function closeCamera() {
@@ -204,7 +256,7 @@ function closeCamera() {
 
 async function shoot() {
   const v = $('#camVideo');
-  if (!stream || !v.videoWidth) return;
+  if (!stream || !v.videoWidth) return toast('La cámara aún se está iniciando…');
   let canvas;
   try {
     if ('ImageCapture' in window) {
@@ -283,7 +335,7 @@ function drawQuad() {
   const pts = crop.corners.map(toScreen);
   const poly = pts.map(p => `${p.x},${p.y}`).join(' ');
   $('#cropSvg').innerHTML = `<polygon class="quad" points="${poly}"/>` +
-    pts.map((p, i) => `<circle class="h" cx="${p.x}" cy="${p.y}" r="${crop.drag === i ? 22 : 16}"/>`).join('');
+    pts.map((p, i) => `<circle class="hd" cx="${p.x}" cy="${p.y}" r="${crop.drag === i ? 22 : 16}"/>`).join('');
 }
 
 function cropDown(e) {
@@ -394,8 +446,8 @@ async function exportPdf() {
 
 export function resultSheet(rec, fromScan = false) {
   const file = new File([rec.blob], rec.name, { type: 'application/pdf' });
-  const b = openSheet(`<h3>✅ ${esc(rec.name)}</h3>
-    <p class="small muted">${rec.pages ? rec.pages + (rec.pages === 1 ? ' página' : ' páginas') + ' · ' : ''}${fmtBytes(rec.size)} · guardado en Historial</p>
+  const b = openSheet(`<h3>${esc(rec.name)}</h3>
+    <p class="small muted">${rec.pages ? rec.pages + (rec.pages === 1 ? ' hoja, ' : ' hojas, ') : ''}${fmtBytes(rec.size)}. Guardado en Historial.</p>
     <div class="stack">
       <button class="btn primary" data-r="share"><svg><use href="#i-share"/></svg>Compartir</button>
       <button class="btn" data-r="dl"><svg><use href="#i-dl"/></svg>Descargar</button>

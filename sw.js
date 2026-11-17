@@ -1,10 +1,10 @@
 // Service worker de Escáner Libre: todo desde caché para funcionar sin conexión.
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.1.0';
 const SHELL = 'escaner-shell-' + VERSION;
 const CDN = 'escaner-cdn-v1'; // URLs con versión fija: inmutables, se conservan entre versiones
 
 const SHELL_FILES = [
-  './', './index.html', './manifest.webmanifest', './css/styles.css',
+  './', './index.html', './manifest.webmanifest', './css/styles.css', './fonts/archivo.woff2',
   './js/app.js', './js/ui.js', './js/db.js', './js/libs.js', './js/edges.js', './js/imaging.js',
   './js/scan.js', './js/ocr.js', './js/pdftools.js', './js/signature.js', './js/history.js',
   './js/pdfjs-worker.mjs', './js/ocr-worker.js',

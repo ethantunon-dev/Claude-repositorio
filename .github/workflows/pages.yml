@@ -23,7 +23,7 @@ jobs:
       - name: Preparar el sitio (solo los archivos de la app)
         run: |
           mkdir _site
-          cp -r index.html manifest.webmanifest sw.js .nojekyll css js icons _site/
+          cp -r index.html manifest.webmanifest sw.js .nojekyll css js icons fonts _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
