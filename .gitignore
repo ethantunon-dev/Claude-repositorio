@@ -1,0 +1,4 @@
+tests/node_modules/
+tests/salida/
+tests/package-lock.json
+tests/muestras/camara.y4m

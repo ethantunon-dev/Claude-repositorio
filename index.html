@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Escáner Libre</title>
+  <meta name="description" content="Escanea pizarras, cuadernos y documentos a PDF. Gratis, sin cuenta, sin anuncios y sin conexión.">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1416" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Escáner Libre">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/styles.css">
+  <script>
+    // tema antes de pintar para evitar parpadeo
+    try { const t = localStorage.getItem('tema'); if (t === 'claro' || t === 'oscuro') document.documentElement.dataset.theme = t === 'claro' ? 'light' : 'dark'; } catch { }
+  </script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M7 12h10"/></symbol>
+    <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></symbol>
+    <symbol id="i-pdf" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-hist" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24"><path d="M4 8a2 2 0 0 1 2-2h2l1.5-2h5L16 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></symbol>
+    <symbol id="i-img" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></symbol>
+    <symbol id="i-rot" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></symbol>
+    <symbol id="i-rotl" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 5.7"/><path d="M4 4v7h7"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 10 6 6 6-6"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></symbol>
+    <symbol id="i-del" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-crop" viewBox="0 0 24 24"><path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4v16a8 8 0 0 0 0-16z" fill="currentColor"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13 7 4 4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-install" viewBox="0 0 24 24"><path d="M12 3v11M8 10l4 4 4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></symbol>
+    <symbol id="i-wand" viewBox="0 0 24 24"><path d="m4 20 11-11M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 11l.7 1.3L21 13l-1.3.7L19 15l-.7-1.3L17 13l1.3-.7z"/></symbol>
+    <symbol id="i-full" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/></symbol>
+    <symbol id="i-flash" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <div class="brand"><img src="icons/icon.svg" alt="" width="28" height="28"><span>Escáner Libre</span></div>
+    <span id="offlineBadge" class="badge" hidden>Sin conexión</span>
+    <button id="installBtn" class="icon-btn" hidden aria-label="Instalar app"><svg><use href="#i-install"/></svg></button>
+    <button id="themeBtn" class="icon-btn" aria-label="Cambiar tema"><svg><use href="#i-auto"/></svg></button>
+  </header>
+
+  <main>
+    <!-- ============ ESCANEAR ============ -->
+    <section id="view-scan" class="view active" aria-label="Escanear">
+      <div class="row materia-row">
+        <label for="materiaSel">Materia</label>
+        <select id="materiaSel" class="materia-sel"></select>
+      </div>
+
+      <div id="scanEmpty" class="empty-hero">
+        <p class="hero-title">Pizarra, cuaderno o documento → PDF</p>
+        <p class="muted">Todo se procesa en tu teléfono. Sin cuenta, sin anuncios, sin marca de agua.</p>
+        <div class="hero-actions">
+          <button class="big-btn primary" data-act="camera"><svg><use href="#i-cam"/></svg>Cámara</button>
+          <button class="big-btn" data-act="gallery"><svg><use href="#i-img"/></svg>Galería</button>
+        </div>
+        <button class="link-btn" data-act="sysCamera">Usar la cámara del sistema</button>
+      </div>
+
+      <div id="pageList" class="page-grid" aria-live="polite"></div>
+
+      <div id="scanBar" class="action-bar" hidden>
+        <button class="btn" data-act="camera" aria-label="Añadir con cámara"><svg><use href="#i-cam"/></svg><span>Foto</span></button>
+        <button class="btn" data-act="gallery" aria-label="Añadir desde galería"><svg><use href="#i-img"/></svg><span>Galería</span></button>
+        <button class="btn" data-act="exportJpg"><svg><use href="#i-dl"/></svg><span>JPG</span></button>
+        <button class="btn primary" data-act="exportPdf" id="pdfBtn"><svg><use href="#i-pdf"/></svg><span>PDF</span></button>
+      </div>
+      <div id="scanFooter" class="center small" hidden><button class="link-btn danger" data-act="clearPages">Vaciar páginas</button></div>
+
+      <input id="fileGallery" type="file" accept="image/*" multiple hidden>
+      <input id="fileCamera" type="file" accept="image/*" capture="environment" hidden>
+    </section>
+
+    <!-- ============ OCR ============ -->
+    <section id="view-ocr" class="view" aria-label="Texto (OCR)">
+      <div class="note">✍️ La letra <b>manuscrita</b> puede reconocerse mal. Con letra <b>impresa</b> el resultado es mucho mejor. Todo se procesa en tu teléfono.</div>
+      <h2 class="h">1. Elige la página</h2>
+      <div id="ocrSources" class="thumb-strip"></div>
+      <div class="row gap">
+        <button class="btn" id="ocrPick"><svg><use href="#i-img"/></svg>Imagen</button>
+        <button class="btn" id="ocrPhoto"><svg><use href="#i-cam"/></svg>Foto</button>
+      </div>
+      <input id="ocrFile" type="file" accept="image/*" hidden>
+      <input id="ocrCam" type="file" accept="image/*" capture="environment" hidden>
+      <img id="ocrPreview" class="ocr-preview" alt="Página seleccionada" hidden>
+
+      <h2 class="h">2. Idioma</h2>
+      <div class="segmented" role="radiogroup" id="ocrLang">
+        <button role="radio" aria-checked="true" data-lang="spa">Español</button>
+        <button role="radio" aria-checked="false" data-lang="eng">English</button>
+      </div>
+
+      <button class="big-btn primary wide" id="ocrRun"><svg><use href="#i-text"/></svg>Extraer texto</button>
+      <div id="ocrProgress" class="progress" hidden><div class="bar"></div><span class="ptext"></span></div>
+      <p id="ocrCacheInfo" class="small muted"></p>
+
+      <div id="ocrResult" hidden>
+        <h2 class="h">3. Texto</h2>
+        <textarea id="ocrText" rows="10" spellcheck="false"></textarea>
+        <div class="row gap">
+          <button class="btn" id="ocrCopy"><svg><use href="#i-copy"/></svg>Copiar</button>
+          <button class="btn primary" id="ocrPdf"><svg><use href="#i-pdf"/></svg>PDF con texto buscable</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PDF ============ -->
+    <section id="view-pdf" class="view" aria-label="Herramientas PDF">
+      <div class="segmented" role="tablist" id="pdfTabs">
+        <button role="tab" aria-selected="true" data-sub="org">Organizar</button>
+        <button role="tab" aria-selected="false" data-sub="comp">Comprimir</button>
+        <button role="tab" aria-selected="false" data-sub="sign">Firmar</button>
+      </div>
+
+      <div class="sub" id="sub-org">
+        <p class="small muted">Une, divide, reordena y rota PDF. Añade uno o varios archivos.</p>
+        <button class="big-btn wide" id="orgAdd"><svg><use href="#i-plus"/></svg>Añadir PDF</button>
+        <input id="orgFile" type="file" accept="application/pdf,.pdf" multiple hidden>
+        <div id="orgFiles" class="small muted"></div>
+        <div id="orgPages" class="page-grid pdf-grid"></div>
+        <div id="orgBar" class="action-bar" hidden>
+          <button class="btn" id="orgClear"><svg><use href="#i-x"/></svg><span>Limpiar</span></button>
+          <button class="btn" id="orgSplit"><svg><use href="#i-crop"/></svg><span>Dividir</span></button>
+          <button class="btn primary" id="orgSave"><svg><use href="#i-check"/></svg><span>Guardar PDF</span></button>
+        </div>
+      </div>
+
+      <div class="sub" id="sub-comp" hidden>
+        <p class="small muted">Reduce el peso para enviarlo por WhatsApp o Teams. Las páginas se convierten en imagen.</p>
+        <button class="big-btn wide" id="compPick"><svg><use href="#i-pdf"/></svg>Elegir PDF</button>
+        <input id="compFile" type="file" accept="application/pdf,.pdf" hidden>
+        <div id="compInfo" class="card" hidden></div>
+        <div class="levels" role="radiogroup" id="compLevels">
+          <button role="radio" aria-checked="false" data-level="alta"><b>Alta</b><span>150 ppp · se ve casi igual</span></button>
+          <button role="radio" aria-checked="true" data-level="media"><b>Media</b><span>120 ppp · buen equilibrio</span></button>
+          <button role="radio" aria-checked="false" data-level="whatsapp"><b>WhatsApp / Teams</b><span>~100 ppp · lo más liviano</span></button>
+        </div>
+        <button class="big-btn primary wide" id="compRun" disabled>Comprimir</button>
+        <div id="compProgress" class="progress" hidden><div class="bar"></div><span class="ptext"></span></div>
+        <div id="compResult" class="card result" hidden></div>
+      </div>
+
+      <div class="sub" id="sub-sign" hidden>
+        <div class="card sig-card">
+          <div class="row between"><b>Mi firma</b><button class="btn small-btn" id="sigDraw"><svg><use href="#i-pen"/></svg>Dibujar</button></div>
+          <div id="sigPreview" class="sig-preview"><span class="muted small">Aún no has guardado una firma.</span></div>
+        </div>
+        <button class="big-btn wide" id="signPick"><svg><use href="#i-pdf"/></svg>Elegir PDF para firmar</button>
+        <input id="signFile" type="file" accept="application/pdf,.pdf" hidden>
+        <div id="signer" hidden>
+          <div class="row between pager">
+            <button class="icon-btn" id="signPrev" aria-label="Página anterior"><svg><use href="#i-left"/></svg></button>
+            <span id="signPageLbl"></span>
+            <button class="icon-btn" id="signNext" aria-label="Página siguiente"><svg><use href="#i-right"/></svg></button>
+          </div>
+          <p class="small muted center">Toca la página para colocar la firma. Arrástrala para moverla y usa la esquina para cambiar el tamaño.</p>
+          <div id="signStage" class="sign-stage"><canvas id="signCanvas"></canvas></div>
+          <div class="row gap">
+            <button class="btn" id="signAdd"><svg><use href="#i-plus"/></svg>Firma aquí</button>
+            <button class="btn primary" id="signSave"><svg><use href="#i-check"/></svg>Guardar firmado</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HISTORIAL ============ -->
+    <section id="view-hist" class="view" aria-label="Historial">
+      <div id="histList" class="hist-list"></div>
+      <details class="card" id="materiasCard">
+        <summary><b>Materias</b> <span class="small muted">(para el nombre automático)</span></summary>
+        <div id="materiaChips" class="chips"></div>
+        <form id="materiaForm" class="row gap">
+          <input id="materiaInput" type="text" placeholder="Nueva materia" maxlength="40" autocomplete="off">
+          <button class="btn" type="submit"><svg><use href="#i-plus"/></svg>Añadir</button>
+        </form>
+      </details>
+      <p id="storageInfo" class="small muted center"></p>
+    </section>
+  </main>
+
+  <nav class="tabbar" aria-label="Secciones">
+    <button class="tab active" data-view="scan"><svg><use href="#i-scan"/></svg><span>Escanear</span></button>
+    <button class="tab" data-view="ocr"><svg><use href="#i-text"/></svg><span>Texto</span></button>
+    <button class="tab" data-view="pdf"><svg><use href="#i-pdf"/></svg><span>PDF</span></button>
+    <button class="tab" data-view="hist"><svg><use href="#i-hist"/></svg><span>Historial</span></button>
+  </nav>
+
+  <!-- ====== Cámara ====== -->
+  <div id="cameraView" class="overlay camera" hidden>
+    <video id="camVideo" playsinline muted autoplay></video>
+    <div class="cam-top">
+      <button class="icon-btn light" id="camClose" aria-label="Cerrar cámara"><svg><use href="#i-x"/></svg></button>
+      <span id="camCount" class="badge"></span>
+      <button class="icon-btn light" id="camTorch" aria-label="Linterna" hidden><svg><use href="#i-flash"/></svg></button>
+    </div>
+    <div class="cam-bottom">
+      <button class="icon-btn light big" id="camGallery" aria-label="Galería"><svg><use href="#i-img"/></svg></button>
+      <button class="shutter" id="camShot" aria-label="Tomar foto"></button>
+      <span class="spacer"></span>
+    </div>
+  </div>
+
+  <!-- ====== Editor de bordes ====== -->
+  <div id="cropView" class="overlay crop" hidden>
+    <div class="crop-head">
+      <button class="btn ghost" id="cropCancel">Cancelar</button>
+      <span id="cropTitle">Ajusta los bordes</span>
+      <button class="btn primary" id="cropOk"><svg><use href="#i-check"/></svg>Aceptar</button>
+    </div>
+    <div id="cropStage" class="crop-stage">
+      <canvas id="cropCanvas"></canvas>
+      <svg id="cropSvg" class="crop-svg"></svg>
+      <canvas id="loupe" class="loupe" width="120" height="120" hidden></canvas>
+    </div>
+    <div class="crop-tools">
+      <div class="chips filters" id="cropFilters"></div>
+      <div class="row gap center">
+        <button class="btn" id="cropAuto"><svg><use href="#i-wand"/></svg>Auto</button>
+        <button class="btn" id="cropFull"><svg><use href="#i-full"/></svg>Completa</button>
+        <button class="btn" id="cropRot" aria-label="Rotar"><svg><use href="#i-rot"/></svg>Rotar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Vista de página ====== -->
+  <div id="pageView" class="overlay pageview" hidden>
+    <div class="crop-head">
+      <button class="btn ghost" id="pvDelete"><svg><use href="#i-del"/></svg></button>
+      <span id="pvTitle">Página</span>
+      <button class="btn primary" id="pvDone"><svg><use href="#i-check"/></svg>Listo</button>
+    </div>
+    <div class="pv-stage"><img id="pvImg" alt="Vista previa de la página"></div>
+    <div class="crop-tools">
+      <div class="chips filters" id="pvFilters"></div>
+      <div class="row gap center">
+        <button class="btn" id="pvRotL" aria-label="Rotar a la izquierda"><svg><use href="#i-rotl"/></svg></button>
+        <button class="btn" id="pvRotR" aria-label="Rotar a la derecha"><svg><use href="#i-rot"/></svg></button>
+        <button class="btn" id="pvCrop"><svg><use href="#i-crop"/></svg>Bordes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Pad de firma ====== -->
+  <div id="sigPad" class="overlay sigpad" hidden>
+    <div class="crop-head">
+      <button class="btn ghost" id="padCancel">Cancelar</button>
+      <span>Dibuja tu firma</span>
+      <button class="btn primary" id="padSave"><svg><use href="#i-check"/></svg>Guardar</button>
+    </div>
+    <div class="pad-wrap"><canvas id="padCanvas"></canvas><div class="pad-line"></div></div>
+    <div class="row gap center">
+      <button class="btn" id="padClear"><svg><use href="#i-del"/></svg>Borrar</button>
+      <div class="chips" id="padColors">
+        <button class="chip on" data-color="#111827">Negro</button>
+        <button class="chip" data-color="#1d4ed8">Azul</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== Hoja inferior genérica ====== -->
+  <div id="sheet" class="sheet-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <div class="sheet-grip"></div>
+      <div id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div><p id="busyText">Procesando…</p></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

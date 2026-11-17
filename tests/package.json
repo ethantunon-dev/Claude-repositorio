@@ -1,0 +1,14 @@
+{
+  "name": "escaner-libre-pruebas",
+  "private": true,
+  "description": "Copias locales de las mismas versiones fijas de la CDN, solo para las pruebas automáticas.",
+  "scripts": { "verificar": "node verificar.mjs" },
+  "devDependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "4.10.38",
+    "tesseract.js": "6.0.1",
+    "tesseract.js-core": "6.0.0",
+    "@tesseract.js-data/spa": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0"
+  }
+}

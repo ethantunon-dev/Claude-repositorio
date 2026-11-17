@@ -1,0 +1,19 @@
+Universidad Tecnológica - Facultad de Ingeniería Civil
+Laboratorio de Mecánica de Suelos
+
+Práctica 3: Límites de consistencia de Atterberg
+
+Objetivo: determinar el límite líquido y el límite plástico de
+una muestra de suelo fino, y calcular el índice de plasticidad.
+
+Procedimiento: se coloca la muestra en la copa de Casagrande y
+se cuenta el número de golpes necesarios para cerrar la ranura
+en una longitud de 13 mm. Se repite el ensayo con distintos
+contenidos de humedad y se grafica la curva de fluidez.
+
+Resultados: el límite líquido es 42 por ciento, el límite
+plástico es 23 por ciento y el índice de plasticidad es 19.
+El suelo se clasifica como una arcilla de baja plasticidad.
+
+Conclusión: los valores obtenidos coinciden con los esperados
+para este tipo de suelo según la norma ASTM D4318.
