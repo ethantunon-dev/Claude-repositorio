@@ -851,4 +851,19 @@ function iniciar() {
   if (abrir) hojaEval(abrir);
 }
 
-iniciar();
+// Si llegó el HTML de otra app (el service worker viejo de Escáner Libre atendía todas las páginas
+// del sitio), se actualizan los service workers y se recarga para traer la página correcta.
+async function reparar() {
+  let n = 0;
+  try { n = +sessionStorage.getItem('crono-reparar') || 0; sessionStorage.setItem('crono-reparar', String(n + 1)); } catch { n = 9; }
+  if (n >= 3 || !('serviceWorker' in navigator)) return;
+  const recargar = () => location.reload();
+  navigator.serviceWorker.addEventListener('controllerchange', recargar, { once: true });
+  setTimeout(recargar, 3000);
+  try { for (const r of await navigator.serviceWorker.getRegistrations()) await r.update().catch(() => { }); } catch { }
+}
+
+if (document.getElementById('tituloVista')) {
+  try { sessionStorage.removeItem('crono-reparar'); } catch { }
+  iniciar();
+} else reparar();
