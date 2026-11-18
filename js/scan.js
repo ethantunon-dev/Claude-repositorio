@@ -2,7 +2,7 @@
 import { $, $$, esc, toast, busy, busyText, withBusy, openSheet, closeSheet, confirmSheet, downloadBlob, shareFiles, canShareFiles, fmtBytes, pickFiles } from './ui.js';
 import { kv } from './db.js';
 import { detectQuad, fullQuad } from './edges.js';
-import { fileToCanvas, makeCanvas, canvasToBlob, renderPage, FILTERS, nextFrame, MAX_SRC } from './imaging.js';
+import { fileToCanvas, makeCanvas, canvasToBlob, renderPage, FILTERS, nextFrame, MAX_SRC, warp, applyFilter, rotateCanvas } from './imaging.js';
 import { getPDFLib } from './libs.js';
 import { saveDoc, nextName, markUsed, getMateria } from './history.js';
 
@@ -47,6 +47,7 @@ function renderPages() {
   $('#scanEmpty').hidden = has;
   $('#scanBar').hidden = !has;
   $('#scanFooter').hidden = !has;
+  $('#scanHint').hidden = !has;
   $('#pageList').innerHTML = pages.map((p, i) => `
     <div class="pcard" data-id="${p.id}">
       <button class="thumb" data-a="view" aria-label="Ver página ${i + 1}">
@@ -112,32 +113,19 @@ function autoDetect(src) {
   } catch (e) { console.warn(e); return { corners: null, small: null }; }
 }
 
-// filtro sugerido según luminancia dentro del cuadrilátero
-function guessFilter(small, corners) {
-  if (!small) return 'blanca';
-  const xs = corners.map(p => p.x * small.width), ys = corners.map(p => p.y * small.height);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const ix = (x1 - x0) * 0.15, iy = (y1 - y0) * 0.15;
-  const w = Math.max(1, Math.round(x1 - x0 - 2 * ix)), h = Math.max(1, Math.round(y1 - y0 - 2 * iy));
-  const d = small.getContext('2d', { willReadFrequently: true }).getImageData(Math.round(x0 + ix), Math.round(y0 + iy), w, h).data;
-  const l = [];
-  for (let i = 0; i < d.length; i += 16) l.push(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
-  l.sort((a, b) => a - b);
-  return l[l.length >> 1] < 110 ? 'verde' : 'blanca';
-}
-
 async function srcToBlob(canvas) { return canvasToBlob(canvas, 'image/jpeg', 0.92); }
 
 // Añade una imagen. interactive=true abre el editor de bordes.
 async function addImage(fileOrCanvas, interactive) {
-  const src = fileOrCanvas instanceof HTMLCanvasElement ? fileOrCanvas : await fileToCanvas(fileOrCanvas, MAX_SRC);
+  let src = fileOrCanvas instanceof HTMLCanvasElement ? fileOrCanvas : await fileToCanvas(fileOrCanvas, MAX_SRC);
   const det = autoDetect(src);
   const corners = det.corners || fullQuad();
-  const page = { id: uid(), corners, filter: guessFilter(det.small, corners), rotation: 0, detected: !!det.corners };
+  // el filtro NO se elige solo: la hoja empieza en «Original»
+  const page = { id: uid(), corners, filter: 'original', rotation: 0, detected: !!det.corners };
   if (interactive) {
     const r = await openCrop(src, page);
     if (!r) return null;
-    Object.assign(page, r);
+    src = r.src; page.corners = r.corners;
   }
   busy(true, 'Corrigiendo perspectiva…');
   try {
@@ -274,20 +262,24 @@ async function shoot() {
 }
 
 // --------- editor de bordes ---------
-const crop = { src: null, corners: null, filter: 'blanca', rotation: 0, resolve: null, view: null, drag: -1 };
+const crop = { src: null, corners: null, resolve: null, view: null, drag: -1, rotated: false };
 
 function initCrop() {
-  $('#cropFilters').innerHTML = Object.entries(FILTERS).map(([k, v]) => `<button class="chip" data-f="${k}">${v}</button>`).join('');
-  $('#cropFilters').onclick = e => { const f = e.target.closest('[data-f]'); if (f) { crop.filter = f.dataset.f; markChips('#cropFilters', crop.filter); } };
   $('#cropCancel').onclick = () => finishCrop(null);
-  $('#cropOk').onclick = () => finishCrop({ corners: crop.corners.map(p => ({ ...p })), filter: crop.filter, rotation: crop.rotation });
+  $('#cropOk').onclick = () => finishCrop({ corners: crop.corners.map(p => ({ ...p })), src: crop.src, rotated: crop.rotated });
   $('#cropAuto').onclick = () => {
     const det = autoDetect(crop.src);
     if (det.corners) { crop.corners = det.corners; drawQuad(); toast('Bordes detectados'); }
     else toast('No se detectaron bordes; ajusta las esquinas a mano');
   };
   $('#cropFull').onclick = () => { crop.corners = fullQuad(); drawQuad(); };
-  $('#cropRot').onclick = () => { crop.rotation = (crop.rotation + 90) % 360; $('#cropRot').lastChild.textContent = crop.rotation ? `Rotar ${crop.rotation}°` : 'Rotar'; };
+  // gira la foto en pantalla (90° a la derecha) junto con las esquinas
+  $('#cropRot').onclick = () => {
+    crop.src = rotateCanvas(crop.src, 90); crop.rotated = true;
+    const f = p => ({ x: 1 - p.y, y: p.x }), c = crop.corners;
+    crop.corners = [f(c[3]), f(c[0]), f(c[1]), f(c[2])];
+    layoutCrop();
+  };
   const st = $('#cropStage');
   st.addEventListener('pointerdown', cropDown);
   st.addEventListener('pointermove', cropMove);
@@ -300,10 +292,8 @@ function markChips(sel, val) { $$(sel + ' [data-f]').forEach(c => c.classList.to
 
 function openCrop(src, page) {
   return new Promise(res => {
-    Object.assign(crop, { src, corners: page.corners.map(p => ({ ...p })), filter: page.filter, rotation: page.rotation || 0, resolve: res });
-    $('#cropRot').lastChild.textContent = crop.rotation ? `Rotar ${crop.rotation}°` : 'Rotar';
+    Object.assign(crop, { src, corners: page.corners.map(p => ({ ...p })), resolve: res, rotated: false });
     $('#cropTitle').textContent = page.detected === false ? 'Ajusta las esquinas' : 'Ajusta los bordes';
-    markChips('#cropFilters', crop.filter);
     $('#cropView').hidden = false;
     requestAnimationFrame(layoutCrop);
     if (page.detected === false) toast('No se detectaron bordes: se usa la imagen completa. Arrastra las esquinas si quieres.', 3500);
@@ -362,10 +352,10 @@ function cropMove(e) {
   drawQuad();
   // lupa
   const L = $('#loupe'), lc = L.getContext('2d'), z = 3, src = crop.src;
-  const sx = p.x * src.width, sy = p.y * src.height, span = L.width / (z * v.s * (window.devicePixelRatio > 1 ? 1 : 1));
+  const sx = p.x * src.width, sy = p.y * src.height, span = L.width / (z * v.s);
   lc.fillStyle = '#000'; lc.fillRect(0, 0, L.width, L.height);
   lc.drawImage(src, sx - span / 2, sy - span / 2, span, span, 0, 0, L.width, L.height);
-  lc.strokeStyle = '#2dd4bf'; lc.lineWidth = 2;
+  lc.strokeStyle = '#3D7BFF'; lc.lineWidth = 2;
   lc.beginPath(); lc.moveTo(L.width / 2, 0); lc.lineTo(L.width / 2, L.height); lc.moveTo(0, L.height / 2); lc.lineTo(L.width, L.height / 2); lc.stroke();
   const sp = toScreen(p);
   L.style.left = Math.min(r.width - 130, Math.max(10, sp.x - 60 + (sp.x < r.width / 2 ? 80 : -80))) + 'px';
@@ -375,30 +365,71 @@ function cropMove(e) {
 
 function cropUp() { crop.drag = -1; $('#loupe').hidden = true; if (crop.view) drawQuad(); }
 
-// --------- vista de página ---------
-let pvPage = null;
+// --------- editor de hoja: filtros con vista previa, rotar, bordes ---------
+let pvPage = null, pvToken = 0;
 function initPageView() {
-  $('#pvFilters').innerHTML = Object.entries(FILTERS).map(([k, v]) => `<button class="chip" data-f="${k}">${v}</button>`).join('');
   $('#pvFilters').onclick = async e => {
     const f = e.target.closest('[data-f]'); if (!f || !pvPage || f.dataset.f === pvPage.filter) return;
     pvPage.filter = f.dataset.f; markChips('#pvFilters', pvPage.filter);
     await withBusy('Aplicando filtro…', () => reprocess(pvPage)); showPv();
   };
-  $('#pvRotL').onclick = async () => { pvPage.rotation = ((pvPage.rotation || 0) + 270) % 360; await withBusy('Rotando…', () => reprocess(pvPage)); showPv(); };
-  $('#pvRotR').onclick = async () => { pvPage.rotation = ((pvPage.rotation || 0) + 90) % 360; await withBusy('Rotando…', () => reprocess(pvPage)); showPv(); };
+  $('#pvAll').onclick = applyFilterToAll;
+  $('#pvRotL').onclick = async () => { pvPage.rotation = ((pvPage.rotation || 0) + 270) % 360; await withBusy('Rotando…', () => reprocess(pvPage)); showPv(); buildPreviews(); };
+  $('#pvRotR').onclick = async () => { pvPage.rotation = ((pvPage.rotation || 0) + 90) % 360; await withBusy('Rotando…', () => reprocess(pvPage)); showPv(); buildPreviews(); };
   $('#pvCrop').onclick = async () => {
     const p = pvPage;
     const src = await fileToCanvas(p.src, MAX_SRC);
     $('#pageView').hidden = true;
     const r = await openCrop(src, p);
     $('#pageView').hidden = false;
-    if (r) { Object.assign(p, r); markChips('#pvFilters', p.filter); await withBusy('Corrigiendo perspectiva…', () => reprocess(p)); showPv(); }
+    if (!r) return;
+    p.corners = r.corners;
+    await withBusy('Corrigiendo perspectiva…', async () => {
+      if (r.rotated) p.src = await srcToBlob(r.src);
+      await reprocess(p);
+    });
+    showPv(); buildPreviews();
   };
   $('#pvDone').onclick = () => { $('#pageView').hidden = true; pvPage = null; };
   $('#pvDelete').onclick = async () => {
-    if (!(await confirmSheet('¿Eliminar esta página?', 'Eliminar', true))) return;
+    if (!(await confirmSheet('¿Eliminar esta hoja?', 'Eliminar', true))) return;
     pages = pages.filter(p => p !== pvPage); $('#pageView').hidden = true; pvPage = null; renderPages(); persist();
   };
+}
+
+// Miniaturas de cada filtro sobre la hoja recortada (en baja resolución, rápido)
+async function buildPreviews() {
+  const p = pvPage, token = ++pvToken;
+  $('#pvFilters').innerHTML = Object.entries(FILTERS).map(([k, v]) =>
+    `<button class="fprev ${k === p.filter ? 'on' : ''}" data-f="${k}"><span class="fimg"></span><span>${v}</span></button>`).join('');
+  try {
+    const src = await fileToCanvas(p.src, 800);
+    let base = rotateCanvas(warp(src, p.corners), p.rotation || 0);
+    base = smallCanvas(base, 300);
+    for (const k of Object.keys(FILTERS)) {
+      if (token !== pvToken) return;
+      const c = makeCanvas(base.width, base.height);
+      c.getContext('2d', { willReadFrequently: true }).drawImage(base, 0, 0);
+      applyFilter(c, k);
+      const slot = $(`#pvFilters [data-f="${k}"] .fimg`);
+      if (slot) slot.style.backgroundImage = `url(${c.toDataURL('image/jpeg', 0.7)})`;
+      await nextFrame();
+    }
+  } catch (e) { console.warn('vista previa de filtros', e); }
+}
+
+async function applyFilterToAll() {
+  const f = pvPage.filter, todo = pages.filter(p => p.filter !== f);
+  if (!todo.length) return toast(`Todas las hojas ya usan «${FILTERS[f]}»`);
+  busy(true, `Aplicando «${FILTERS[f]}»…`);
+  try {
+    for (let i = 0; i < todo.length; i++) {
+      busyText(`Aplicando «${FILTERS[f]}» a la hoja ${i + 1} de ${todo.length}…`);
+      todo[i].filter = f;
+      await reprocess(todo[i]);
+    }
+  } finally { busy(false); }
+  toast(`«${FILTERS[f]}» aplicado a las ${pages.length} hojas`);
 }
 
 let pvUrl;
@@ -407,10 +438,11 @@ function showPv() {
   if (pvUrl) URL.revokeObjectURL(pvUrl);
   pvUrl = URL.createObjectURL(pvPage.out);
   $('#pvImg').src = pvUrl;
-  $('#pvTitle').textContent = `Página ${pages.indexOf(pvPage) + 1} de ${pages.length}`;
+  $('#pvTitle').textContent = `Hoja ${pages.indexOf(pvPage) + 1} de ${pages.length}`;
+  $('#pvAll').hidden = pages.length < 2;
 }
 function openPageView(p) {
-  pvPage = p; markChips('#pvFilters', p.filter); $('#pageView').hidden = false; showPv();
+  pvPage = p; $('#pageView').hidden = false; showPv(); buildPreviews();
 }
 
 // --------- exportar ---------

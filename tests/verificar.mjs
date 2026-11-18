@@ -78,7 +78,7 @@ await page.waitForTimeout(300); await idle(page);
 const pinfo = await page.evaluate(async () => (await import('./js/scan.js')).getPages().map(p => ({ f: p.filter, det: p.detected, ar: +(p.w / p.h).toFixed(3) })));
 const real = JSON.parse(fs.readFileSync(M + 'esquinas_reales.json')).aspecto_real;
 check('Bordes detectados en las 3 muestras', pinfo.every(p => p.det), pinfo.map(p => p.det ? 'sí' : 'no').join(', '));
-check('Filtro automático correcto (blanca, verde, blanca)', pinfo.map(p => p.f).join() === 'blanca,verde,blanca', pinfo.map(p => p.f).join(', '));
+check('Ningún filtro se aplica solo (todas en «Original»)', pinfo.every(p => p.f === 'original'), pinfo.map(p => p.f).join(', '));
 check('Proporción corregida ≈ real (±6 %)', pinfo.every((p, i) => Math.abs(p.ar / Object.values(real)[i] - 1) < 0.06), pinfo.map((p, i) => `${p.ar} vs ${Object.values(real)[i].toFixed(3)}`).join('; '));
 await page.screenshot({ path: OUT + '/paginas.png' });
 // sin documento visible: no debe bloquear; usa la imagen completa con esquinas editables
@@ -90,6 +90,10 @@ await choose(page, '#view-scan [data-act=gallery]:visible', [OUT + '/sin_bordes.
 await page.waitForSelector('#cropView:not([hidden])');
 const fb = await page.evaluate(() => [document.querySelector('#cropTitle').textContent, [...document.querySelectorAll('#cropSvg circle')].length]);
 await page.screenshot({ path: OUT + '/sin_bordes_editor.png' });
+// el botón Girar del editor de bordes debe girar la foto en pantalla
+const dims = async () => page.evaluate(() => { const c = document.querySelector('#cropCanvas'); return [parseFloat(c.style.width), parseFloat(c.style.height)]; });
+const d0 = await dims(); await page.click('#cropRot'); const d1 = await dims();
+check('Girar en el editor de bordes gira la imagen en pantalla', (d0[0] > d0[1]) !== (d1[0] > d1[1]), `${d0.map(Math.round).join('×')} → ${d1.map(Math.round).join('×')}`);
 await page.click('#cropCancel');
 check('Si falla la detección: imagen completa con esquinas editables', fb[0] === 'Ajusta las esquinas' && fb[1] === 4, `editor abierto con 4 esquinas en los bordes de la foto`);
 // rotar y reordenar
@@ -98,7 +102,12 @@ await page.click('#pageList .pcard:nth-child(1) [data-a=rot]'); await idle(page)
 await page.click('#pageList .pcard:nth-child(1) [data-a=rot]'); await page.click('#pageList .pcard:nth-child(1) [data-a=rot]'); await page.click('#pageList .pcard:nth-child(1) [data-a=rot]'); await idle(page);
 // cambiar filtro en la vista de página (B/N en la hoja)
 await page.click('#pageList .pcard:nth-child(2) [data-a=view]');
+await page.waitForFunction(() => [...document.querySelectorAll('#pvFilters .fimg')].every(e => e.style.backgroundImage), null, { timeout: 30000 });
+check('Vista previa de los 6 filtros', await page.locator('#pvFilters .fprev').count() === 6);
 await page.click('#pvFilters [data-f=bn]'); await idle(page);
+await page.click('#pvAll'); await idle(page);
+const allF = await page.evaluate(async () => (await import('./js/scan.js')).getPages().map(p => p.filter));
+check('Botón «Aplicar a todas las hojas»', allF.every(f => f === 'bn'), allF.join(', '));
 await page.screenshot({ path: OUT + '/vista-pagina.png' });
 await page.click('#pvDone');
 await page.click('#pdfBtn'); await page.waitForSelector('#sheet:not([hidden])');

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Escáner Libre</title>
   <meta name="description" content="Escanea pizarras, cuadernos y documentos a PDF. Gratis, sin cuenta, sin anuncios y sin conexión.">
-  <meta name="theme-color" content="#E6EFE0" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#16251E" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F4F6F9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E1116" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -87,6 +87,7 @@
         <p class="hero-note">Todo se procesa en tu teléfono: sin cuenta, sin anuncios y sin marca de agua.</p>
       </div>
 
+      <p id="scanHint" class="hint" hidden>Toca una hoja para elegir filtro, girarla o ajustar los bordes.</p>
       <div id="pageList" class="page-grid" aria-live="polite"></div>
 
       <div id="scanBar" class="action-bar" hidden>
@@ -242,13 +243,10 @@
       <svg id="cropSvg" class="crop-svg"></svg>
       <canvas id="loupe" class="loupe" width="120" height="120" hidden></canvas>
     </div>
-    <div class="crop-tools">
-      <div class="chips filters" id="cropFilters"></div>
-      <div class="row gap center">
-        <button class="btn" id="cropAuto"><svg><use href="#i-wand"/></svg>Auto</button>
-        <button class="btn" id="cropFull"><svg><use href="#i-full"/></svg>Completa</button>
-        <button class="btn" id="cropRot" aria-label="Rotar"><svg><use href="#i-rot"/></svg>Rotar</button>
-      </div>
+    <div class="crop-tools tool-row">
+      <button class="tool" id="cropAuto"><svg><use href="#i-wand"/></svg><span>Detectar</span></button>
+      <button class="tool" id="cropFull"><svg><use href="#i-full"/></svg><span>Toda la foto</span></button>
+      <button class="tool" id="cropRot"><svg><use href="#i-rot"/></svg><span>Girar</span></button>
     </div>
   </div>
 
@@ -261,11 +259,15 @@
     </div>
     <div class="pv-stage"><img id="pvImg" alt="Vista previa de la página"></div>
     <div class="crop-tools">
-      <div class="chips filters" id="pvFilters"></div>
-      <div class="row gap center">
-        <button class="btn" id="pvRotL" aria-label="Rotar a la izquierda"><svg><use href="#i-rotl"/></svg></button>
-        <button class="btn" id="pvRotR" aria-label="Rotar a la derecha"><svg><use href="#i-rot"/></svg></button>
-        <button class="btn" id="pvCrop"><svg><use href="#i-crop"/></svg>Bordes</button>
+      <div class="filter-head">
+        <span>Filtro</span>
+        <button class="link-btn" id="pvAll">Aplicar a todas las hojas</button>
+      </div>
+      <div class="filter-strip" id="pvFilters" role="radiogroup" aria-label="Filtros"></div>
+      <div class="tool-row">
+        <button class="tool" id="pvRotL"><svg><use href="#i-rotl"/></svg><span>Girar izq.</span></button>
+        <button class="tool" id="pvRotR"><svg><use href="#i-rot"/></svg><span>Girar der.</span></button>
+        <button class="tool" id="pvCrop"><svg><use href="#i-crop"/></svg><span>Bordes</span></button>
       </div>
     </div>
   </div>
