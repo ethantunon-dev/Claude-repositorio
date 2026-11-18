@@ -1,5 +1,7 @@
 # Escáner Libre
 
+> En la misma carpeta publicada vive también **[Cronograma](planificador/)** (`/planificador/`), el planificador de semestrales, talleres y tareas con alarmas.
+
 PWA para escanear pizarras, cuadernos y documentos a PDF desde el celular.
 **Gratis, sin cuenta, sin anuncios, sin marca de agua y sin límites.** Todo se procesa en el dispositivo y funciona sin conexión.
 
