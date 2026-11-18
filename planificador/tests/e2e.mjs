@@ -100,12 +100,14 @@ try {
   // 4) Notas en la hoja de materia
   await page.click('.tabbar [data-vista=materias]');
   await page.click('.mat[data-mat=hor]');
-  await page.waitForSelector('[data-peso="p-hor"]');
-  await page.fill('[data-peso="p-hor"]', '30'); await page.dispatchEvent('[data-peso="p-hor"]', 'change');
-  await page.fill('[data-nota="p-hor"]', '85'); await page.dispatchEvent('[data-nota="p-hor"]', 'change');
-  await page.fill('[data-peso="s-hor"]', '35'); await page.dispatchEvent('[data-peso="s-hor"]', 'change');
-  const res = await page.textContent('#resNotas');
-  ok(res.includes('Promedio 85 (B) con 30% evaluado') && res.includes('Necesitas un promedio de 65') && res.includes('suman 65%'), `notas: "${res}"`);
+  await page.waitForSelector('#calif details.simple');
+  await page.click('#calif details.simple summary');
+  await page.fill('[data-ev-peso="p-hor"]', '30'); await page.dispatchEvent('[data-ev-peso="p-hor"]', 'change');
+  await page.fill('[data-ev-nota="p-hor"]', '85'); await page.dispatchEvent('[data-ev-nota="p-hor"]', 'change');
+  await page.fill('[data-ev-peso="s-hor"]', '35'); await page.dispatchEvent('[data-ev-peso="s-hor"]', 'change');
+  const res = await page.textContent('[data-c-res]');
+  const suma = await page.textContent('[data-c-suma]');
+  ok(res.includes('Promedio 85 (B) con 30% evaluado') && res.includes('Necesitas un promedio de 65') && suma.includes('suman 65%'), `notas por evaluación (sin rubros): "${res}" / "${suma}"`);
   await page.screenshot({ path: `${OUT}/5-materia.png`, fullPage: false });
   await page.click('[data-cerrar]');
 

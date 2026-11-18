@@ -463,6 +463,51 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 6px; colo
 .sem-fila > span { overflow-wrap: anywhere; }
 .sem-fila input { min-height: 40px; }
 
+/* ---------- calificación: rubros y notas ---------- */
+.calif-res { display: grid; gap: 6px; padding: 2px 0 4px; }
+.medidor { position: relative; height: 12px; border-radius: 999px; background: var(--surface-3); overflow: visible; }
+.medidor .m-eval, .medidor .m-pts { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.medidor .m-eval { background: var(--line-2); }
+.medidor .m-pts { background: var(--accent); }
+.medidor .m-meta { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--gold); border-radius: 2px; }
+.medidor-ley { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; color: var(--muted); }
+.medidor-ley b { color: var(--ink); font-weight: 650; }
+.rubro { display: grid; gap: 6px; padding: 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); min-width: 0; }
+.rubro-h { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.rubro input:not([type=checkbox]):not([type=radio]) { background: var(--surface); min-height: 40px; }
+.rubro .rb-nombre { font-weight: 620; font-size: 16px; }
+.rb-peso { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--ink-2); }
+.rb-peso input[type=number] { width: 4.6em; text-align: right; }
+.rubro-h .x { margin: 0; }
+.rubro-est { margin-top: -2px; }
+.notas-l { display: grid; border-top: 1px solid var(--line); }
+.nota-f { display: grid; grid-template-columns: minmax(0, 1fr) auto 36px; gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.nf-n { display: grid; font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
+.nf-n small { color: var(--muted); font-size: 12.5px; }
+.nf-in { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+.nf-in input[type=number] { width: 4.4em; text-align: right; padding: 6px 8px; }
+.nf-nom { min-width: 0; }
+.nota-f .x { margin: 0; }
+.rubro-pie { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px; }
+.rubro-pie .link { display: inline-flex; align-items: center; gap: 4px; }
+.rubro-pie .link .ic { width: 16px; height: 16px; }
+.rb-cant { display: inline-flex !important; align-items: center; gap: 6px; color: var(--muted); }
+.rb-cant input[type=number] { width: 4em; text-align: right; padding: 6px 8px; }
+.chips-add { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-add {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 5px 12px 5px 9px; border-radius: 999px;
+  border: 1px dashed var(--line-2); background: var(--surface); color: var(--accent-txt); font-size: 14px; font-weight: 600;
+}
+.chip-add .ic { width: 15px; height: 15px; }
+details.simple { display: grid; gap: 10px; }
+details.simple summary { cursor: pointer; color: var(--accent-txt); font-weight: 600; padding: 4px 0; }
+details.simple[open] summary { margin-bottom: 8px; }
+@media (max-width: 360px) {
+  .nota-f { grid-template-columns: minmax(0, 1fr) 36px; }
+  .nota-f .nf-in { grid-column: 1; grid-row: 2; }
+  .nota-f .x, .nota-f .nf-x { grid-column: 2; grid-row: 1 / span 2; }
+}
+
 /* ---------- barra inferior y botón agregar ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;

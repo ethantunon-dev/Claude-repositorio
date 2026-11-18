@@ -95,8 +95,8 @@ function chipsEval(e) {
   if (e.fechaTBD) out.push('<span class="chip warn">Fecha por confirmar</span>');
   else if (e.horaTBD) out.push('<span class="chip warn">Hora por confirmar</span>');
   if (fer) out.push(`<span class="chip warn">Feriado</span>`);
-  if (tiene(e.peso)) out.push(`<span class="chip">${esc(e.peso)}%</span>`);
-  if (tiene(e.nota)) out.push(`<span class="chip">Nota ${esc(e.nota)}</span>`);
+  if (tiene(e.peso) && !mat(e.materiaId)?.rubros?.length) out.push(`<span class="chip">${esc(e.peso)}%</span>`);
+  if (tiene(e.nota)) out.push(`<span class="chip">Nota ${esc(L.notaTexto(e.nota, e.max))}</span>`);
   return out.join('');
 }
 function filaEval(e, now) {
@@ -349,9 +349,9 @@ function renderMaterias() {
   $('#v-materias').innerHTML = `<div class="mats">${S.materias.map(m => {
     const evs = S.evals.filter(e => e.materiaId === m.id);
     const sem = L.ordenarEvals(evs.filter(e => e.tipo === 'semestral'))[0];
-    const r = L.resumenNotas(evs, +aj.notaMin || 71);
+    const r = L.resumenMateria(m, S.evals, +aj.notaMin || 71);
     const pend = evs.filter(e => L.pendiente(e, now)).length;
-    let nota = 'Sin notas todavía. Toca para anotar pesos y notas.';
+    let nota = m.rubros?.length ? `Sin notas todavía (${m.rubros.map(x => `${x.nombre || 'Sin nombre'}${tiene(x.peso) ? ' ' + x.peso + '%' : ''}`).join(', ')}).` : 'Toca para armar cómo te evalúan y anotar tus notas.';
     if (r.promedio != null) {
       nota = `Promedio ${L.redondeo(r.promedio)} (${L.letra(r.promedio)}) con ${L.redondeo(r.pesoEvaluado)}% evaluado. `;
       nota += { asegurado: `Ya tienes el ${aj.notaMin} asegurado.`, falta: `Necesitas ${L.redondeo(r.necesita)} en el ${L.redondeo(r.restante)}% que falta.`, 'no-alcanza': `Aunque saques 100 en lo que falta, no llegas a ${aj.notaMin}.`, aprobado: 'Nota final aprobada.', reprobado: 'Nota final por debajo del mínimo.' }[r.estado] || '';
@@ -382,8 +382,12 @@ function hojaEval(id) {
       <div><dt>Cuándo</dt><dd>${cap(L.fechaLarga(ini))}, ${H(e.ini)}${e.fin ? ` a ${H(e.fin)}` : ''} <span class="muted">(${L.relativo(ini, now)})</span></dd></div>
       ${e.aula ? `<div><dt>Aula</dt><dd>${esc(e.aula)}</dd></div>` : ''}
       ${m?.docente ? `<div><dt>Profesor</dt><dd>${esc(m.docente)}</dd></div>` : ''}
-      ${tiene(e.peso) ? `<div><dt>Vale</dt><dd>${esc(e.peso)}%</dd></div>` : ''}
-      ${tiene(e.nota) ? `<div><dt>Nota</dt><dd>${esc(e.nota)} (${L.letra(+e.nota)})</dd></div>` : ''}
+      ${(() => {
+        const rb = L.asignarRubros(m, S.evals).get(e.id);
+        if (rb) return `<div><dt>Cuenta para</dt><dd>${esc(rb.nombre || 'Sin nombre')}${tiene(rb.peso) ? ` (${esc(rb.peso)}%)` : ''}</dd></div>`;
+        return tiene(e.peso) && !m?.rubros?.length ? `<div><dt>Vale</dt><dd>${esc(e.peso)}%</dd></div>` : '';
+      })()}
+      ${tiene(e.nota) ? (() => { const p = L.porcentaje(e.nota, e.max); return `<div><dt>Nota</dt><dd>${esc(L.notaTexto(e.nota, e.max))} (${(+e.max || 100) === 100 ? '' : L.redondeo(p) + ', '}${L.letra(p)})</dd></div>`; })() : ''}
       <div><dt>Avisos</dt><dd>${L.avisosDe(e, S.ajustes).slice().sort((a, b) => b - a).map(L.avisoNombre).join(', ') || 'Ninguno'} antes</dd></div>
     </dl>
     ${e.fechaTBD || e.horaTBD || fer ? `<p class="nota-warn">${[e.fechaTBD ? 'La fecha está por confirmar.' : '', e.horaTBD ? 'La hora está por confirmar.' : '', fer ? `El ${L.fechaLarga(ini)} es feriado: ${esc(fer)}.` : ''].filter(Boolean).join(' ')}</p>` : ''}
@@ -407,6 +411,19 @@ function hojaEval(id) {
 
 function avisosChips(sel, nombre = 'avisos') {
   return `<div class="chips-sel" role="group">${L.AVISOS.map(([m, t]) => `<label class="chipsel"><input type="checkbox" name="${nombre}" value="${m}" ${sel.includes(m) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>`;
+}
+
+function califForm(materiaId, tipo, e, v) {
+  const m = mat(materiaId);
+  const notaHTML = `<label>Nota obtenida<input type="number" name="nota" id="fe-nota" min="0" step="0.1" inputmode="decimal" value="${esc(v.nota ?? '')}"></label>
+    <label>Sobre<input type="number" name="max" id="fe-max" min="0.1" step="0.1" inputmode="decimal" value="${esc(v.max ?? '')}" placeholder="100"></label>`;
+  if (m?.rubros?.length) {
+    const prueba = { ...e, id: e.id || '__nueva', materiaId, tipo, rubroId: v.rubro !== undefined ? v.rubro : (e.materiaId === materiaId ? e.rubroId : undefined) };
+    const sel = L.asignarRubros(m, [...S.evals.filter(x => x.id !== prueba.id), prueba]).get(prueba.id)?.id ?? '';
+    return `<label>Cuenta para<select name="rubroId" id="fe-rubro">${m.rubros.map(r => `<option value="${esc(r.id)}" ${r.id === sel ? 'selected' : ''}>${esc(r.nombre || 'Sin nombre')}${tiene(r.peso) ? ` (${esc(r.peso)}%)` : ''}</option>`).join('')}<option value="" ${sel === '' ? 'selected' : ''}>No cuenta para la nota</option></select></label>
+      <div class="dos">${notaHTML}</div>`;
+  }
+  return `<div class="tres"><label>Vale (%)<input type="number" name="peso" id="fe-peso" min="0" max="100" step="0.5" inputmode="decimal" value="${esc(v.peso ?? '')}"></label>${notaHTML}</div>`;
 }
 
 function claseDe(materiaId, fecha) {
@@ -457,10 +474,7 @@ function hojaFormEval(id) {
       </div>
       <label class="check"><input type="checkbox" name="horaTBD" id="fe-htbd" ${e.horaTBD ? 'checked' : ''}><span>Hora por confirmar</span></label>
       <fieldset><legend>Avisar antes</legend>${avisosChips(avisosSel)}</fieldset>
-      <div class="dos">
-        <label>Vale (%)<input type="number" name="peso" id="fe-peso" min="0" max="100" step="0.5" inputmode="decimal" value="${esc(e.peso)}"></label>
-        <label>Nota obtenida<input type="number" name="nota" id="fe-nota" min="0" max="100" step="0.1" inputmode="decimal" value="${esc(e.nota)}"></label>
-      </div>
+      <div id="fe-calif" class="form"></div>
       <label>Notas<textarea name="notas" id="fe-notas" rows="3" maxlength="1000" placeholder="Temas, capítulos, qué llevar…">${esc(e.notas)}</textarea></label>
       <p class="form-err" id="fe-err" role="alert" hidden></p>
       <div class="fila-btn fin"><button type="button" class="btn" data-cerrar>Cancelar</button><button type="submit" class="btn primario">${existente ? 'Guardar cambios' : 'Agregar'}</button></div>
@@ -478,6 +492,14 @@ function hojaFormEval(id) {
       const info = $('#fe-fer', root);
       info.hidden = !fer; info.textContent = fer ? `Ese día es feriado: ${fer}.` : '';
     };
+    // nota, máximo y rubro (o porcentaje si la materia no tiene rubros); se redibuja al cambiar materia o tipo
+    let rubroTocado = false;
+    const pintarCalifForm = () => {
+      const v = { nota: f.nota ? f.nota.value : e.nota, max: f.max ? f.max.value : e.max, peso: f.peso ? f.peso.value : e.peso, rubro: rubroTocado && f.rubroId ? f.rubroId.value : undefined };
+      $('#fe-calif', root).innerHTML = califForm(f.materiaId.value, f.tipo.value, e, v);
+      f.rubroId?.addEventListener('change', () => { rubroTocado = true; });
+    };
+    pintarCalifForm();
     const tipoPrev = { v: f.tipo.value };
     f.tipo.onchange = () => {
       // si los avisos eran los del tipo anterior, pasar a los del nuevo tipo
@@ -488,11 +510,12 @@ function hojaFormEval(id) {
         $$('input[name=avisos]', f).forEach(i => { i.checked = nuevos.includes(+i.value); });
       }
       tipoPrev.v = f.tipo.value;
-      rellenar(); actualizar();
+      rellenar(); actualizar(); pintarCalifForm();
     };
     f.materiaId.onchange = () => {
       if (!tocado) { const px = proximaClaseDe(f.materiaId.value, NOW()); if (px) f.fecha.value = px.fecha; }
-      rellenar(); actualizar();
+      rubroTocado = false;
+      rellenar(); actualizar(); pintarCalifForm();
     };
     f.fecha.onchange = () => { rellenar(); actualizar(); };
     ['ini', 'fin', 'aula'].forEach(n => f[n].addEventListener('input', () => { tocado = true; }));
@@ -502,9 +525,11 @@ function hojaFormEval(id) {
       const nuevo = {
         ...e,
         materiaId: f.materiaId.value, tipo: f.tipo.value, titulo: f.titulo.value.trim(), fecha: f.fecha.value,
-        ini: f.ini.value, fin: f.fin.value, aula: f.aula.value.trim(), peso: f.peso.value.trim(), nota: f.nota.value.trim(),
+        ini: f.ini.value, fin: f.fin.value, aula: f.aula.value.trim(), nota: f.nota.value.trim(), max: f.max.value.trim(),
         notas: f.notas.value.trim(), fechaTBD: f.fechaTBD.checked, horaTBD: f.horaTBD.checked,
       };
+      if (f.peso) nuevo.peso = f.peso.value.trim();
+      if (f.rubroId && rubroTocado) nuevo.rubroId = f.rubroId.value;
       const marcados = $$('input[name=avisos]:checked', f).map(i => +i.value);
       const porTipo = S.ajustes.avisosPorTipo?.[nuevo.tipo] ?? L.TIPOS[nuevo.tipo]?.avisos ?? [];
       const igual = marcados.slice().sort((a, b) => a - b).join(',') === porTipo.slice().sort((a, b) => a - b).join(',');
@@ -539,28 +564,10 @@ function hojaMateria(id) {
   const m = existente ? { ...existente } : { id: '', nombre: '', corto: '', codigo: '', docente: '', color: L.COLORES.find(c => !S.materias.some(x => x.color === c)) || 'azul' };
   const evs = existente ? L.ordenarEvals(S.evals.filter(e => e.materiaId === m.id)) : [];
   const clases = existente ? S.clases.filter(c => c.materiaId === m.id).sort((a, b) => (a.dia - b.dia) || (L.minutos(a.ini) - L.minutos(b.ini))) : [];
-  const notaMin = +S.ajustes.notaMin || 71;
-  const resumen = () => {
-    const r = L.resumenNotas(S.evals.filter(e => e.materiaId === m.id), notaMin);
-    if (r.promedio == null) return 'Anota cuánto vale cada evaluación y la nota que sacaste para ver tu promedio y cuánto necesitas.';
-    let t = `Promedio ${L.redondeo(r.promedio)} (${L.letra(r.promedio)}) con ${L.redondeo(r.pesoEvaluado)}% evaluado; llevas ${L.redondeo(r.puntos)} de ${notaMin} puntos. `;
-    t += { asegurado: `Ya tienes el ${notaMin} asegurado.`, falta: `Necesitas un promedio de ${L.redondeo(r.necesita)} en el ${L.redondeo(r.restante)}% restante.`, 'no-alcanza': `Necesitarías ${L.redondeo(r.necesita)} en lo que falta: no alcanza.`, aprobado: `Nota final ${L.redondeo(r.puntos)}: aprobada.`, reprobado: `Nota final ${L.redondeo(r.puntos)}: por debajo de ${notaMin}.` }[r.estado] || '';
-    if (Math.abs(r.pesoTotal - 100) > 0.01) t += ` Ojo: los pesos que anotaste suman ${L.redondeo(r.pesoTotal)}%.`;
-    return t;
-  };
   const diasOpt = [1, 2, 3, 4, 5, 6, 7].map(d => `<option value="${d}">${cap(L.DIAS[d % 7])}</option>`).join('');
   abrirHoja(`
     <div class="hoja-h" style="${colorVar(m)}"><h2>${existente ? `<i class="hito grande" aria-hidden="true"></i>${esc(m.nombre)}` : 'Nueva materia'}</h2><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
-    ${existente ? `<section class="sub"><h3>Notas</h3>
-      ${evs.length ? `<div class="tabla-notas" role="table" aria-label="Notas">
-        <div class="tn-h" role="row"><span role="columnheader">Evaluación</span><span role="columnheader">Vale %</span><span role="columnheader">Nota</span></div>
-        ${evs.map(e => `<div class="tn-f" role="row"><span role="cell">${esc(L.tituloDe(e, m))}<small>${L.fechaCorta(L.inicioDe(e))}</small></span>
-          <span role="cell"><input type="number" min="0" max="100" step="0.5" inputmode="decimal" aria-label="Peso de ${esc(L.tituloDe(e, m))}" data-peso="${esc(e.id)}" value="${esc(e.peso)}"></span>
-          <span role="cell"><input type="number" min="0" max="100" step="0.1" inputmode="decimal" aria-label="Nota de ${esc(L.tituloDe(e, m))}" data-nota="${esc(e.id)}" value="${esc(e.nota)}"></span></div>`).join('')}
-      </div>` : '<p class="small muted">Esta materia no tiene evaluaciones todavía.</p>'}
-      <p class="resumen-notas" id="resNotas">${esc(resumen())}</p>
-      <p class="small muted">Escala: A 91–100, B 81–90, C 71–80, D 61–70, F 0–60. Nota mínima ${notaMin} (se cambia en Ajustes).</p>
-    </section>` : ''}
+    ${existente ? `<section class="sub" id="calif" aria-label="Calificación">${califHTML(existente)}</section>` : ''}
     <form id="fMat" class="form sub" novalidate>
       <h3>Datos</h3>
       <label>Nombre<input name="nombre" id="fm-nombre" maxlength="80" value="${esc(m.nombre)}" required></label>
@@ -594,17 +601,7 @@ function hojaMateria(id) {
       else { const nm = { id: uid(), ...datos }; S.materias.push(nm); toast('Materia agregada. Ahora agrega sus clases.'); guardar(); renderTodo(); hojaMateria(nm.id); }
     };
     if (!existente) return;
-    $$('[data-peso],[data-nota]', root).forEach(inp => {
-      inp.addEventListener('change', () => {
-        const k = inp.dataset.peso ? 'peso' : 'nota';
-        const e = S.evals.find(x => x.id === (inp.dataset.peso || inp.dataset.nota));
-        const v = inp.value.trim();
-        if (v !== '' && (isNaN(+v) || +v < 0 || +v > 100)) { inp.classList.add('inv'); toast('Pon un número entre 0 y 100.'); return; }
-        inp.classList.remove('inv');
-        e[k] = v; guardar(); renderTodo();
-        $('#resNotas', root).textContent = resumen();
-      });
-    });
+    montarCalif($('#calif', root), existente);
     const fc = $('#fClase', root);
     fc.onsubmit = ev => {
       ev.preventDefault();
@@ -627,6 +624,198 @@ function hojaMateria(id) {
         guardar(); renderTodo(); cerrarHoja(); toast('Materia eliminada');
       };
     };
+  });
+}
+
+// ---------- calificación de una materia: rubros y notas ----------
+const mayus = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+const SINGULAR = { PARCIALES: 'Parcial', TALLERES: 'Taller', TAREAS: 'Tarea', QUICES: 'Quiz', LABORATORIO: 'Lab', LABORATORIOS: 'Lab', PROYECTOS: 'Proyecto', INFORMES: 'Informe' };
+function textoResumen(r, notaMin) {
+  if (r.promedio == null) return r.modo === 'rubros'
+    ? 'Todavía no hay notas. Escribe tus puntajes en cada rubro para ver tu promedio y cuánto necesitas.'
+    : 'Anota cuánto vale cada evaluación y la nota que sacaste para ver tu promedio y cuánto necesitas.';
+  let t = `Promedio ${L.redondeo(r.promedio)} (${L.letra(r.promedio)}) con ${L.redondeo(r.pesoEvaluado)}% evaluado. `;
+  t += { asegurado: `Ya tienes el ${notaMin} asegurado.`, falta: `Necesitas un promedio de ${L.redondeo(r.necesita)} en el ${L.redondeo(r.restante)}% que falta.`, 'no-alcanza': `Necesitarías ${L.redondeo(r.necesita)} en lo que falta: no alcanza para ${notaMin}.`, aprobado: `Nota final ${L.redondeo(r.puntos)}: aprobada.`, reprobado: `Nota final ${L.redondeo(r.puntos)}: por debajo de ${notaMin}.` }[r.estado] || '';
+  return t;
+}
+function avisoSuma(r) {
+  if (r.modo !== 'rubros' && !r.pesoTotal) return '';
+  return Math.abs(r.pesoTotal - 100) > 0.01 ? `Los porcentajes suman ${L.redondeo(r.pesoTotal)}%. Deben sumar 100%.` : '';
+}
+function estadoRubro(d) {
+  const partes = [];
+  if (d.promedio != null) partes.push(`Promedio ${L.redondeo(d.promedio)}`);
+  partes.push(d.total ? `${d.conNota} de ${d.total} ${d.total === 1 ? 'nota' : 'notas'}` : 'sin notas');
+  const peso = +d.r.peso;
+  if (peso > 0 && d.total) {
+    const aporta = d.notas.reduce((a, x) => a + (x.pct ?? 0), 0) / d.total * peso / 100;
+    partes.push(`aporta ${L.redondeo(aporta)} de ${L.redondeo(peso)} pts`);
+  }
+  return partes.join(' · ');
+}
+function medidorHTML(r, notaMin) {
+  const pct = v => Math.max(0, Math.min(100, v || 0));
+  return `<div class="medidor" role="img" aria-label="${esc(`Llevas ${L.redondeo(r.puntos)} puntos de ${L.redondeo(r.pesoEvaluado)} evaluados; meta ${notaMin}`)}">
+      <span class="m-eval" style="width:${pct(r.pesoEvaluado)}%"></span><span class="m-pts" style="width:${pct(r.puntos)}%"></span><i class="m-meta" style="left:${pct(notaMin)}%"></i>
+    </div>
+    <div class="medidor-ley small"><span><b>${L.redondeo(r.puntos) || 0}</b> pts ganados</span><span>${L.redondeo(r.pesoEvaluado) || 0} evaluados</span><span>meta ${notaMin}</span></div>`;
+}
+const inNota = (attr, v, label) => `<input type="number" ${attr} min="0" step="0.1" inputmode="decimal" value="${esc(v ?? '')}" aria-label="${esc(label)}">`;
+const inMax = (attr, v, label) => `<input type="number" ${attr} min="0.1" step="0.1" inputmode="decimal" value="${esc(v ?? '')}" placeholder="100" aria-label="${esc(label)}">`;
+
+function califHTML(m) {
+  const notaMin = +S.ajustes.notaMin || 71;
+  const rubros = m.rubros || [];
+  const r = L.resumenMateria(m, S.evals, notaMin);
+  const evs = L.ordenarEvals(S.evals.filter(e => e.materiaId === m.id));
+  const sugeridos = L.RUBROS_SUGERIDOS.filter(n => !rubros.some(x => mayus(x.nombre) === mayus(n)));
+  const chips = `<div class="chips-add" role="group" aria-label="Agregar rubro">${sugeridos.map(n => `<button type="button" class="chip-add" data-agregar-rubro="${esc(n)}">${icon('mas')}${esc(n)}</button>`).join('')}<button type="button" class="chip-add" data-agregar-rubro="">${icon('mas')}Otro</button></div>`;
+  const pie = `<p class="resumen-notas" data-c-res>${esc(textoResumen(r, notaMin))}</p>
+    <p class="nota-warn" data-c-suma ${avisoSuma(r) ? '' : 'hidden'}>${esc(avisoSuma(r))}</p>
+    <p class="small muted">Escala: A 91–100, B 81–90, C 71–80, D 61–70, F 0–60. Nota mínima ${notaMin} (se cambia en Ajustes).</p>`;
+  if (!rubros.length) {
+    return `<h3>Calificación</h3>
+      <p class="small">Arma cómo te evalúan en esta materia: toca un rubro, ponle su porcentaje y anota tus puntajes.</p>
+      ${chips}
+      ${evs.length ? `<details class="simple"><summary class="small">O usa solo las evaluaciones de la agenda, cada una con su porcentaje</summary>
+        <div class="tabla-notas" role="table" aria-label="Notas por evaluación">
+          <div class="tn-h" role="row"><span role="columnheader">Evaluación</span><span role="columnheader">Vale %</span><span role="columnheader">Nota</span></div>
+          ${evs.map(e => `<div class="tn-f" role="row"><span role="cell">${esc(L.tituloDe(e, m))}<small>${L.fechaCorta(L.inicioDe(e))}</small></span>
+            <span role="cell"><input type="number" min="0" max="100" step="0.5" inputmode="decimal" aria-label="Porcentaje de ${esc(L.tituloDe(e, m))}" data-ev-peso="${esc(e.id)}" value="${esc(e.peso)}"></span>
+            <span role="cell">${inNota(`data-ev-nota="${esc(e.id)}"`, e.nota, 'Nota de ' + L.tituloDe(e, m))}</span></div>`).join('')}
+        </div>${pie}</details>` : ''}`;
+  }
+  const det = L.detalleRubros(m, S.evals);
+  const asig = L.asignarRubros(m, S.evals);
+  const sueltas = evs.filter(e => !asig.has(e.id));
+  return `<h3>Calificación</h3>
+    <div class="calif-res">${medidorHTML(r, notaMin)}</div>
+    ${det.map(d => {
+      const rb = d.r, id = esc(rb.id);
+      const filas = d.notas.map(x => x.tipo === 'eval'
+        ? `<div class="nota-f"><span class="nf-n">${esc(L.tituloDe(x.e, m))}<small>${L.fechaCorta(L.inicioDe(x.e))}, en la agenda</small></span>
+            <span class="nf-in">${inNota(`data-ev-nota="${esc(x.e.id)}"`, x.e.nota, 'Nota de ' + L.tituloDe(x.e, m))}<span>de</span>${inMax(`data-ev-max="${esc(x.e.id)}"`, x.e.max, 'Puntaje máximo de ' + L.tituloDe(x.e, m))}</span><span class="nf-x"></span></div>`
+        : `<div class="nota-f"><input class="nf-nom" data-it-nom="${id}|${esc(x.it.id)}" value="${esc(x.it.nombre)}" maxlength="40" placeholder="Nombre" aria-label="Nombre de la nota">
+            <span class="nf-in">${inNota(`data-it-nota="${id}|${esc(x.it.id)}"`, x.it.nota, 'Nota de ' + (x.it.nombre || rb.nombre))}<span>de</span>${inMax(`data-it-max="${id}|${esc(x.it.id)}"`, x.it.max, 'Puntaje máximo de ' + (x.it.nombre || rb.nombre))}</span>
+            <button type="button" class="x" data-quitar-nota="${id}|${esc(x.it.id)}" aria-label="Quitar ${esc(x.it.nombre || 'nota')}">${icon('cerrar')}</button></div>`).join('');
+      const faltan = d.total - d.notas.length;
+      return `<div class="rubro" data-rubro="${id}">
+        <div class="rubro-h">
+          <input class="rb-nombre" data-rb-nombre="${id}" value="${esc(rb.nombre)}" maxlength="30" placeholder="Nombre del rubro" aria-label="Nombre del rubro">
+          <label class="rb-peso"><input type="number" data-rb-peso="${id}" min="0" max="100" step="0.5" inputmode="decimal" value="${esc(rb.peso ?? '')}" aria-label="Porcentaje de ${esc(rb.nombre || 'este rubro')}"><span>%</span></label>
+          <span class="confirmar" data-rb-conf="${id}"><button type="button" class="x" data-quitar-rubro="${id}" aria-label="Quitar ${esc(rb.nombre || 'rubro')}">${icon('cerrar')}</button></span>
+        </div>
+        <p class="rubro-est small muted" data-rb-est="${id}">${esc(estadoRubro(d))}</p>
+        ${filas ? `<div class="notas-l">${filas}</div>` : ''}
+        ${faltan > 0 ? `<p class="small muted">Faltan ${faltan} ${faltan === 1 ? 'nota' : 'notas'} por anotar.</p>` : ''}
+        <div class="rubro-pie">
+          <button type="button" class="link" data-agregar-nota="${id}">${icon('mas')}Agregar nota</button>
+          <label class="rb-cant small">Serán<input type="number" data-rb-cant="${id}" min="0" max="60" step="1" inputmode="numeric" value="${esc(rb.cantidad ?? '')}" placeholder="${d.notas.length}" aria-label="Cuántas notas habrá en ${esc(rb.nombre || 'este rubro')}">en total</label>
+        </div>
+      </div>`;
+    }).join('')}
+    ${chips}
+    ${sueltas.length ? `<div class="sub sueltas"><p class="small muted">Estas evaluaciones de la agenda no cuentan en ningún rubro:</p>
+      ${sueltas.map(e => `<label class="imp-m"><span><b>${esc(L.tituloDe(e, m))}</b><small class="muted">${L.fechaCorta(L.inicioDe(e))}</small></span>
+        <select data-ev-rubro="${esc(e.id)}" aria-label="Rubro de ${esc(L.tituloDe(e, m))}"><option value="">No cuenta</option>${rubros.map(x => `<option value="${esc(x.id)}">${esc(x.nombre || 'Sin nombre')}</option>`).join('')}</select></label>`).join('')}</div>` : ''}
+    ${pie}`;
+}
+
+function montarCalif(caja, m) {
+  const notaMin = () => +S.ajustes.notaMin || 71;
+  const rubro = id => (m.rubros || []).find(r => r.id === id);
+  const item = ref => { const [rid, iid] = ref.split('|'); return (rubro(rid)?.items || []).find(i => i.id === iid); };
+  const pintar = foco => {
+    caja.innerHTML = califHTML(m);
+    if (foco) { const el = $(foco, caja); if (el) { el.focus(); el.scrollIntoView?.({ block: 'center' }); } }
+  };
+  // solo los números: no se redibuja nada, así el teclado no se cierra al pasar de un campo a otro
+  const refrescar = () => {
+    const r = L.resumenMateria(m, S.evals, notaMin());
+    const res = $('[data-c-res]', caja); if (res) res.textContent = textoResumen(r, notaMin());
+    const suma = $('[data-c-suma]', caja); if (suma) { suma.textContent = avisoSuma(r); suma.hidden = !avisoSuma(r); }
+    const med = $('.calif-res', caja); if (med) med.innerHTML = medidorHTML(r, notaMin());
+    for (const d of L.detalleRubros(m, S.evals)) { const el = caja.querySelector(`[data-rb-est="${CSS.escape(d.r.id)}"]`); if (el) el.textContent = estadoRubro(d); }
+  };
+  const listo = (estructura, foco) => { guardar(); renderTodo(); estructura ? pintar(foco) : refrescar(); };
+  const numero = (inp, min, max, entero) => {
+    const v = inp.value.trim();
+    if (v === '') { inp.classList.remove('inv'); return ''; }
+    const n = +v;
+    if (isNaN(n) || n < min || n > max || (entero && !Number.isInteger(n))) { inp.classList.add('inv'); toast(entero ? `Pon un número entero de ${min} a ${max}.` : `Pon un número de ${min} a ${max}.`); return null; }
+    inp.classList.remove('inv');
+    return v;
+  };
+  const nota = (inp, otro, esMax) => {
+    const vNota = esMax ? otro : inp.value.trim(), vMax = esMax ? inp.value.trim() : otro;
+    const err = L.validarNota(vNota, vMax) || (vMax !== '' && !(+vMax > 0) ? 'El máximo debe ser mayor que 0.' : '');
+    if (err) { inp.classList.add('inv'); toast(err); return false; }
+    inp.classList.remove('inv');
+    return true;
+  };
+  caja.addEventListener('change', ev => {
+    const t = ev.target, ds = t.dataset;
+    if (ds.rbNombre) {
+      const rb = rubro(ds.rbNombre); if (!rb) return;
+      const antes = JSON.stringify([...L.asignarRubros(m, S.evals)].map(([k, v]) => [k, v.id]));
+      rb.nombre = t.value.trim() || rb.nombre; t.value = rb.nombre;
+      const despues = JSON.stringify([...L.asignarRubros(m, S.evals)].map(([k, v]) => [k, v.id]));
+      return listo(antes !== despues);
+    }
+    if (ds.rbPeso) { const v = numero(t, 0, 100); if (v === null) return; rubro(ds.rbPeso).peso = v; return listo(false); }
+    if (ds.rbCant) { const v = numero(t, 0, 60, true); if (v === null) return; rubro(ds.rbCant).cantidad = v; return listo(true); }
+    if (ds.evPeso) { const v = numero(t, 0, 100); if (v === null) return; S.evals.find(e => e.id === ds.evPeso).peso = v; return listo(false); }
+    if (ds.evNota || ds.evMax) {
+      const e = S.evals.find(x => x.id === (ds.evNota || ds.evMax)); if (!e) return;
+      if (!nota(t, ds.evNota ? (e.max ?? '') : (e.nota ?? ''), !!ds.evMax)) return;
+      e[ds.evNota ? 'nota' : 'max'] = t.value.trim(); return listo(false);
+    }
+    if (ds.itNom) { const it = item(ds.itNom); if (it) it.nombre = t.value.trim(); return listo(false); }
+    if (ds.itNota || ds.itMax) {
+      const it = item(ds.itNota || ds.itMax); if (!it) return;
+      if (!nota(t, ds.itNota ? (it.max ?? '') : (it.nota ?? ''), !!ds.itMax)) return;
+      it[ds.itNota ? 'nota' : 'max'] = t.value.trim(); return listo(false);
+    }
+    if (ds.evRubro) { const e = S.evals.find(x => x.id === ds.evRubro); if (e) e.rubroId = t.value; return listo(true); }
+  });
+  caja.addEventListener('click', ev => {
+    const b = ev.target.closest('button'); if (!b) return;
+    const ds = b.dataset;
+    if (ds.agregarRubro !== undefined) {
+      m.rubros = m.rubros || [];
+      const nuevo = { id: uid(), nombre: ds.agregarRubro, peso: '', cantidad: '', items: [] };
+      m.rubros.push(nuevo);
+      return listo(true, ds.agregarRubro ? `[data-rb-peso="${nuevo.id}"]` : `[data-rb-nombre="${nuevo.id}"]`);
+    }
+    if (ds.agregarNota) {
+      const rb = rubro(ds.agregarNota); if (!rb) return;
+      rb.items = rb.items || [];
+      const d = L.detalleRubros(m, S.evals).find(x => x.r.id === rb.id);
+      const base = SINGULAR[mayus(rb.nombre)] || rb.nombre || 'Nota';
+      const ult = rb.items[rb.items.length - 1];
+      const it = { id: uid(), nombre: `${base} ${(d?.notas.length || 0) + 1}`, nota: '', max: ult?.max ?? '' };
+      rb.items.push(it);
+      return listo(true, `[data-it-nota="${rb.id}|${it.id}"]`);
+    }
+    if (ds.quitarNota) {
+      const [rid, iid] = ds.quitarNota.split('|');
+      const rb = rubro(rid); if (!rb) return;
+      rb.items = (rb.items || []).filter(i => i.id !== iid);
+      return listo(true);
+    }
+    if (ds.quitarRubro) {
+      const rb = rubro(ds.quitarRubro); if (!rb) return;
+      const quitar = () => {
+        m.rubros = m.rubros.filter(x => x.id !== rb.id);
+        for (const e of S.evals) if (e.materiaId === m.id && e.rubroId === rb.id) delete e.rubroId;
+        listo(true); toast(`Rubro ${rb.nombre || ''} quitado`.replace('  ', ' '));
+      };
+      if (!(rb.items || []).some(i => String(i.nota ?? '').trim() !== '')) return quitar();
+      const conf = caja.querySelector(`[data-rb-conf="${CSS.escape(rb.id)}"]`);
+      conf.innerHTML = '<span class="small">Se borran sus notas.</span><button type="button" class="btn chico peligro" data-si>Quitar</button><button type="button" class="btn chico" data-no>No</button>';
+      $('[data-si]', conf).onclick = quitar;
+      $('[data-no]', conf).onclick = () => pintar();
+    }
   });
 }
 

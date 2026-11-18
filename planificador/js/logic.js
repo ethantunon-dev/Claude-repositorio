@@ -202,7 +202,7 @@ const num = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
 export function resumenNotas(evals, notaMin = 71) {
   let pesoEvaluado = 0, puntos = 0, pesoTotal = 0;
   for (const e of evals) {
-    const p = num(e.peso), n = num(e.nota);
+    const p = num(e.peso), n = porcentaje(e.nota, e.max);
     if (p == null || p <= 0) continue;
     pesoTotal += p;
     if (n != null) { pesoEvaluado += p; puntos += p * n / 100; }
@@ -216,6 +216,76 @@ export function resumenNotas(evals, notaMin = 71) {
   r.estado = r.necesita <= 0 ? 'asegurado' : r.necesita > 100 ? 'no-alcanza' : 'falta';
   return r;
 }
+// Nota sobre un máximo ("18 de 20") → porcentaje (90). Sin máximo, la nota ya está sobre 100.
+export function porcentaje(nota, max) {
+  const n = num(nota), m = num(max) ?? 100;
+  return n == null || !(m > 0) ? null : n / m * 100;
+}
+export const notaTexto = (nota, max) => (num(max) ?? 100) === 100 ? String(nota) : `${nota} de ${max}`;
+
+// ---------- rubros de una materia (Parciales 40 %, Laboratorio 20 %…) ----------
+// m.rubros = [{ id, nombre, peso, cantidad, items: [{ id, nombre, nota, max }] }]
+// Las evaluaciones de la agenda entran en un rubro por e.rubroId ('' = en ninguno) o, si no se eligió,
+// por su tipo (un parcial va a "Parciales"; si hay "Parcial 1", "Parcial 2"…, se reparten en orden de fecha).
+export const RUBROS_SUGERIDOS = ['Parciales', 'Semestral', 'Laboratorio', 'Talleres', 'Tareas', 'Quices', 'Proyecto', 'Asistencia'];
+const RUBRO_DE_TIPO = {
+  parcial: /PARCIAL/, semestral: /SEMESTRAL|FINAL/, taller: /TALLER/, informe: /LAB/, quiz: /QUI[CZ]|PRUEBA/,
+  tarea: /TAREA|ASIGNACION/, proyecto: /PROYECTO/,
+};
+const mayus = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+export function asignarRubros(m, evals) {
+  const out = new Map();
+  const rubros = m?.rubros || [];
+  if (!rubros.length) return out;
+  const propias = ordenarEvals(evals.filter(e => e.materiaId === m.id));
+  const cuenta = {};
+  for (const e of propias) {
+    if (e.rubroId === '') continue;
+    if (e.rubroId) { const r = rubros.find(x => x.id === e.rubroId); if (r) { out.set(e.id, r); continue; } }
+    const re = RUBRO_DE_TIPO[e.tipo];
+    if (!re) continue;
+    const posibles = rubros.filter(r => re.test(mayus(r.nombre)));
+    if (!posibles.length) continue;
+    const k = cuenta[e.tipo] = (cuenta[e.tipo] ?? -1) + 1;
+    out.set(e.id, posibles[Math.min(k, posibles.length - 1)]);
+  }
+  return out;
+}
+export function detalleRubros(m, evals) {
+  const asig = asignarRubros(m, evals);
+  const propias = ordenarEvals(evals.filter(e => e.materiaId === m.id));
+  return (m?.rubros || []).map(r => {
+    const enAgenda = propias.filter(e => asig.get(e.id)?.id === r.id).map(e => ({ tipo: 'eval', e, pct: porcentaje(e.nota, e.max) }));
+    const sueltas = (r.items || []).map(it => ({ tipo: 'item', it, pct: porcentaje(it.nota, it.max) }));
+    const notas = [...enAgenda, ...sueltas];
+    const total = Math.max(Math.floor(num(r.cantidad) || 0), notas.length);
+    const conNota = notas.filter(x => x.pct != null);
+    const promedio = conNota.length ? conNota.reduce((a, x) => a + x.pct, 0) / conNota.length : null;
+    return { r, notas, total, conNota: conNota.length, promedio };
+  });
+}
+// Resumen de la materia: con rubros, cada rubro reparte su porcentaje en partes iguales entre sus notas
+// (las que faltan cuentan como pendientes); sin rubros, se usa el porcentaje de cada evaluación.
+export function resumenMateria(m, evals, notaMin = 71) {
+  if (!m?.rubros?.length) return { ...resumenNotas(evals.filter(e => e.materiaId === m.id), notaMin), modo: 'simple' };
+  const partes = [];
+  for (const d of detalleRubros(m, evals)) {
+    const peso = num(d.r.peso);
+    if (peso == null || peso <= 0) continue;
+    if (!d.total) { partes.push({ peso, nota: '' }); continue; }
+    for (let k = 0; k < d.total; k++) partes.push({ peso: peso / d.total, nota: d.notas[k]?.pct ?? '' });
+  }
+  return { ...resumenNotas(partes, notaMin), modo: 'rubros' };
+}
+export function validarNota(nota, max) {
+  const n = num(nota), m = num(max) ?? 100;
+  if (String(nota ?? '').trim() === '') return '';
+  if (n == null || n < 0) return 'La nota debe ser un número desde 0.';
+  if (!(m > 0)) return 'El máximo debe ser mayor que 0.';
+  if (n > m) return `La nota no puede pasar de ${m}.`;
+  return '';
+}
+
 export const redondeo = (n, d = 1) => n == null ? '' : (Math.round(n * 10 ** d) / 10 ** d).toFixed(d).replace(/\.0+$/, '');
 
 // ---------- archivo de calendario (.ics, RFC 5545) ----------
@@ -330,7 +400,8 @@ export function validarEval(e, materias) {
   if (e.fin && !validHM(e.fin)) err.fin = 'Hora de fin no válida.';
   if (validHM(e.ini) && validHM(e.fin) && minutos(e.fin) <= minutos(e.ini)) err.fin = 'Debe terminar después de empezar.';
   if (e.peso !== '' && e.peso != null && (isNaN(+e.peso) || +e.peso < 0 || +e.peso > 100)) err.peso = 'Entre 0 y 100.';
-  if (e.nota !== '' && e.nota != null && (isNaN(+e.nota) || +e.nota < 0 || +e.nota > 100)) err.nota = 'Entre 0 y 100.';
+  if (e.max !== '' && e.max != null && !(+e.max > 0)) err.max = 'El máximo debe ser mayor que 0.';
+  else if (validarNota(e.nota, e.max)) err.nota = validarNota(e.nota, e.max);
   return err;
 }
 export function validarClase(c) {

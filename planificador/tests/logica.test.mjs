@@ -129,3 +129,45 @@ test('archivo .ics: formato RFC 5545', () => {
   assert.equal(fold.split('\r\n').map((l, i) => i ? l.slice(1) : l).join(''), largo);
   fs.writeFileSync(process.env.ICS_OUT || '/dev/null', ics);
 });
+
+test('rubros: porcentajes, notas sobre un máximo y lo que falta', () => {
+  const m = { id: 'hor', rubros: [
+    { id: 'r1', nombre: 'Parciales', peso: 40, cantidad: 3, items: [] },
+    { id: 'r2', nombre: 'Laboratorio', peso: 20, cantidad: 4, items: [{ id: 'i1', nombre: 'Lab 1', nota: 18, max: 20 }, { id: 'i2', nombre: 'Lab 2', nota: 16, max: 20 }] },
+    { id: 'r3', nombre: 'Talleres', peso: 15, cantidad: '', items: [] },
+    { id: 'r4', nombre: 'Semestral', peso: 25, cantidad: '', items: [] },
+  ] };
+  const evs = [
+    { id: 'a', materiaId: 'hor', tipo: 'parcial', fecha: '2026-10-01', ini: '08:00', nota: 80 },
+    { id: 'b', materiaId: 'hor', tipo: 'parcial', fecha: '2026-11-01', ini: '08:00', nota: 45, max: 50 },
+    { id: 'c', materiaId: 'hor', tipo: 'semestral', fecha: '2026-12-14', ini: '12:50', nota: '' },
+    { id: 'd', materiaId: 'otra', tipo: 'parcial', fecha: '2026-10-05', ini: '08:00', nota: 10 },
+  ];
+  const det = L.detalleRubros(m, evs);
+  assert.deepEqual(det.map(d => [d.r.nombre, d.total, d.conNota, d.promedio == null ? null : Math.round(d.promedio)]),
+    [['Parciales', 3, 2, 85], ['Laboratorio', 4, 2, 85], ['Talleres', 0, 0, null], ['Semestral', 1, 0, null]]);
+  const r = L.resumenMateria(m, evs, 71);
+  assert.equal(r.modo, 'rubros');
+  assert.ok(Math.abs(r.puntos - 31.1667) < 1e-3, `puntos ${r.puntos}`);          // 40/3·(0.8+0.9) + 5·(0.9+0.8)
+  assert.ok(Math.abs(r.pesoEvaluado - 36.6667) < 1e-3, `evaluado ${r.pesoEvaluado}`);
+  assert.ok(Math.abs(r.promedio - 85) < 1e-9);
+  assert.equal(r.pesoTotal, 100);
+  assert.ok(Math.abs(r.necesita - 62.8947) < 1e-3, `necesita ${r.necesita}`);
+  assert.equal(r.estado, 'falta');
+  // "Parcial 1", "Parcial 2": los parciales se reparten por fecha; '' = no cuenta; rubroId elegido gana
+  const m2 = { id: 'x', rubros: [{ id: 'p1', nombre: 'Parcial 1', peso: 50 }, { id: 'p2', nombre: 'Parcial 2', peso: 50 }] };
+  const e2 = [
+    { id: 'u', materiaId: 'x', tipo: 'parcial', fecha: '2026-11-20', ini: '08:00' },
+    { id: 't', materiaId: 'x', tipo: 'parcial', fecha: '2026-10-20', ini: '08:00' },
+    { id: 'v', materiaId: 'x', tipo: 'parcial', fecha: '2026-12-01', ini: '08:00', rubroId: '' },
+    { id: 'w', materiaId: 'x', tipo: 'taller', fecha: '2026-12-02', ini: '08:00', rubroId: 'p1' },
+  ];
+  const a = L.asignarRubros(m2, e2);
+  assert.deepEqual([...a].map(([k, v]) => `${k}:${v.id}`).sort(), ['t:p1', 'u:p2', 'w:p1']);
+  // sin rubros: se sigue usando el porcentaje de cada evaluación (y su máximo)
+  const simple = L.resumenMateria({ id: 'hor' }, [{ id: 'a', materiaId: 'hor', peso: 50, nota: 18, max: 20 }], 71);
+  assert.equal(simple.modo, 'simple'); assert.equal(simple.promedio, 90);
+  assert.equal(L.validarNota(21, 20), 'La nota no puede pasar de 20.');
+  assert.equal(L.validarNota('', 20), '');
+  assert.equal(L.notaTexto(18, 20), '18 de 20'); assert.equal(L.notaTexto(85, ''), '85');
+});

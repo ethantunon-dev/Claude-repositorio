@@ -1,5 +1,5 @@
 // Service worker de Cronograma: la app funciona sin conexión y abre la evaluación al tocar un aviso.
-const VERSION = 'v1.2.0';
+const VERSION = 'v1.3.0';
 const CACHE = 'cronograma-' + VERSION;
 const CDN = 'crono-cdn-v1'; // pdf.js (versión fija): se guarda la primera vez que se importa un PDF
 const FILES = [

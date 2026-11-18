@@ -10,7 +10,7 @@ Viene cargado con el II semestre 2026 (grupo 1IC133). Gratis, sin cuenta, sin an
 | **Hoy** | Cuenta regresiva al próximo examen · cronograma de 5 semanas con cada examen y entrega como hito (◆) y los feriados marcados · clases de hoy (o del próximo día con clases) · lo que viene en 14 días · avisos que ya tocaron. |
 | **Agenda** | Todas las evaluaciones por semana. Filtros: pendientes, hechas, todas y por materia. Las que ya pasaron sin marcar aparecen arriba. |
 | **Horario** | Semana de clases con la hora actual marcada; los laboratorios van rayados. Botón para mandar el horario al calendario (se repite cada semana hasta el último día de clases y salta los feriados). |
-| **Materias** | Profesor, código y fecha del semestral. Notas con peso: promedio, letra (escala UTP) y cuánto necesitas en lo que falta para llegar a la nota mínima. |
+| **Materias** | Profesor, código y fecha del semestral. **Calificación por rubros**: Parciales, Laboratorio, Talleres, Semestral… (o el nombre que quieras), cada uno con su porcentaje; dentro, las notas que quieras con puntaje y máximo (18 de 20) y cuántas habrá en total. Los parciales, talleres, etc. de la agenda entran solos en su rubro (o se elige en la evaluación). Muestra puntos ganados, % evaluado, promedio, letra (escala UTP) y cuánto necesitas en lo que falta. Sin rubros, se puede usar el porcentaje de cada evaluación. |
 | **+** | Nueva evaluación en pocos toques: la fecha, la hora y el aula se llenan solas con la próxima clase de esa materia. Avisa si el día es feriado. |
 | **Instalar** | Botón arriba a la derecha: instala la app si el navegador lo permite o explica los pasos (vista rápida de Brave/Chrome, iPhone). |
 | **Semestre y horario** | Botón *Cambiar horario* (en Horario, Materias y Ajustes). **Importar el PDF "Horario de clases" de la UTP**: arma materias, clases, aulas, laboratorios y grupos, y en un semestre con datos conserva las materias y sus notas. **Fechas de semestrales**: pegar la tabla del calendario de la UTP (llena fecha, hora, aula, nombre completo, código y profesor) o ponerlas a mano. **Empezar semestre nuevo**: guarda el actual en el historial con sus notas; se puede volver a él. |
@@ -45,5 +45,6 @@ Si una evaluación cambia después de mandarla al calendario, su ícono pasa a a
 ```bash
 TZ=America/Panama node --test planificador/tests/logica.test.mjs planificador/tests/importar.test.mjs   # lógica, .ics, feriados e importador
 node planificador/tests/e2e.mjs /tmp/capturas                        # app completa en Chromium (Playwright)
+node planificador/tests/e2e-notas.mjs /tmp/capturas                  # rubros y notas dentro de una materia
 node planificador/tests/e2e-semestre.mjs horario.pdf <node_modules con pdfjs-dist@4.10.38> /tmp/capturas   # semestre nuevo, PDF, semestrales, historial
 ```
