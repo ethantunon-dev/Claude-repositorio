@@ -132,10 +132,10 @@ function heroHTML(now) {
     <p class="hero-cuenta" id="heroCuenta">${enCurso ? '<span class="n">Ahora</span>' : textoCuenta(ini - now)}</p>
     <h2 class="hero-t"><i class="hito grande" aria-hidden="true"></i>${enCurso ? 'En curso: ' : 'para el '}${esc(L.tituloDe(e, m))}</h2>
     <p class="hero-cuando">${cap(L.fechaLarga(ini))}, ${H(e.ini)}${e.fin ? ` a ${H(e.fin)}` : ''}${e.aula ? `<br>Aula ${esc(e.aula)}` : ''}</p>
-    ${e.fechaTBD || e.horaTBD || fer ? `<p class="hero-aviso">${[e.fechaTBD ? 'Fecha por confirmar' : e.horaTBD ? 'Hora por confirmar' : '', fer ? `Ese día es feriado (${esc(fer)})` : ''].filter(Boolean).join('. ')}.</p>` : ''}
+    ${e.fechaTBD || e.horaTBD || fer ? `<p class="hero-aviso">${[e.fechaTBD ? 'Fecha por confirmar' : e.horaTBD ? 'Hora por confirmar' : '', fer ? `Ese día es feriado (${esc(fer)})` : ''].filter(Boolean).join('. ')}</p>` : ''}
     <div class="hero-acc">
       <button type="button" class="btn primario" data-ics="${esc(e.id)}">${icon(estadoCal(e) === 'ok' ? 'calOk' : 'cal')}${estadoCal(e) === 'ok' ? 'Ya está en el calendario' : 'Agregar al calendario'}</button>
-      <button type="button" class="btn" data-ev="${esc(e.id)}">Ver detalles</button>
+      <button type="button" class="btn suave" data-ev="${esc(e.id)}">Ver detalles</button>
     </div>
   </section>`;
 }
@@ -169,7 +169,7 @@ function cronogramaHTML(now) {
   // tramo de semestrales
   const sems = pend.filter(e => e.tipo === 'semestral').map(e => L.diasEntre(hoy, L.inicioDe(e))).filter(i => i >= 0 && i < n);
   const tramo = sems.length >= 2 ? `<span class="tramo" style="--a:${Math.min(...sems) / n * 100}%; --b:${(Math.max(...sems) + 1) / n * 100}%"><span>Semestrales</span></span>` : '';
-  return `<section class="bloque" aria-label="Cronograma de las próximas semanas">
+  return `<section class="bloque plano" aria-label="Cronograma de las próximas semanas">
     <div class="bloque-h"><h3>Cronograma</h3><span class="muted small">${Math.round(n / 7)} semanas</span></div>
     <div class="crono" style="--n:${n}">
       ${tramo}
@@ -218,13 +218,17 @@ function avisosHTML(now) {
     parts.push(`<div class="aviso" style="${colorVar(m)}">${icon('campana')}<p><b>${esc(L.tituloDe(a.e, m))}</b> ${L.relativo(ini, now)}, ${H(a.e.ini)}</p>
       <button type="button" class="x" data-visto="${esc(a.e.id)}" aria-label="Cerrar aviso">${icon('cerrar')}</button></div>`);
   }
-  const ex = S.evals.filter(e => !e.hecho && L.finDe(e) > now);
-  const sinCal = ex.filter(e => estadoCal(e) !== 'ok').length;
-  if (sinCal && !S.ajustes.ocultarCal) {
-    parts.push(`<div class="aviso info">${icon('cal')}<p>${sinCal === 1 ? 'Una evaluación no está' : `${sinCal} evaluaciones no están`} en el calendario del teléfono. Ahí es donde suenan las alarmas aunque la app esté cerrada.</p>
-      <div class="aviso-acc"><button type="button" class="btn primario chico" data-accion="ics-todo">Agregar todo</button><button type="button" class="btn chico" data-accion="como-alarmas">Cómo funciona</button></div></div>`);
-  }
   return parts.join('');
+}
+
+function calBarHTML(now) {
+  const sinCal = S.evals.filter(e => !e.hecho && L.finDe(e) > now && estadoCal(e) !== 'ok').length;
+  if (!sinCal) return '';
+  return `<section class="calbar" aria-label="Alarmas">
+    <span class="calbar-ic">${icon('campana')}</span>
+    <p><b>${sinCal === 1 ? '1 evaluación sin alarma' : `${sinCal} evaluaciones sin alarma`}</b><span>Agrégalas al calendario del teléfono para que suenen aunque la app esté cerrada.</span></p>
+    <div class="calbar-acc"><button type="button" class="btn primario chico" data-accion="ics-todo">Agregar todo</button><button type="button" class="link" data-accion="como-alarmas">Cómo funciona</button></div>
+  </section>`;
 }
 
 function proximosHTML(now) {
@@ -236,7 +240,7 @@ function proximosHTML(now) {
 
 function renderHoy() {
   const now = NOW();
-  $('#v-hoy').innerHTML = avisosHTML(now) + heroHTML(now) + cronogramaHTML(now) + clasesHoyHTML(now) + proximosHTML(now);
+  $('#v-hoy').innerHTML = avisosHTML(now) + heroHTML(now) + calBarHTML(now) + cronogramaHTML(now) + clasesHoyHTML(now) + proximosHTML(now);
 }
 
 // ---------- vista Agenda ----------
@@ -625,6 +629,7 @@ function hojaAjustes() {
         <button type="button" class="btn ancho" data-accion="ics-horario">${icon('cal')}Agregar horario de clases al calendario</button>
         <button type="button" class="btn ancho" data-accion="como-alarmas">Cómo funcionan las alarmas</button>
       </div>
+      <div class="fila-dato"><span>Instalar en el celular<small class="muted">${instalada() ? 'Ya está instalada' : 'Ícono en la pantalla de inicio y uso sin internet'}</small></span>${instalada() ? '' : '<button type="button" class="btn chico" data-accion="instalar">Instalar</button>'}</div>
       <div class="fila-dato"><span>Avisos dentro de la app<small class="muted">${estNotif}</small></span>${perm === 'default' ? '<button type="button" class="btn chico" data-accion="notifs">Activar</button>' : ''}</div>
     </section>
     <form id="fAj" class="form sub" novalidate>
@@ -757,6 +762,32 @@ async function activarNotifs() {
   if (sheet().open) hojaAjustes();
 }
 
+// ---------- instalar como app ----------
+let pedidoInstalar = null;
+const instalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function botonInstalar() { $('#btnInstalar').hidden = instalada(); }
+async function instalar() {
+  if (pedidoInstalar) {
+    const p = pedidoInstalar; pedidoInstalar = null;
+    try { p.prompt(); const r = await p.userChoice; if (r.outcome === 'accepted') { toast('Instalando Cronograma…'); return; } } catch { }
+  }
+  hojaInstalar();
+}
+function hojaInstalar() {
+  const url = location.origin + location.pathname;
+  const ios = esIOS();
+  abrirHoja(`
+    <div class="hoja-h"><h2>Instalar Cronograma</h2><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
+    <div class="texto">
+      <p>Queda como una app con su ícono en la pantalla de inicio y funciona sin internet.</p>
+      ${ios ? `<ol class="pasos"><li>Abre este enlace en <b>Safari</b>.</li><li>Toca el botón <b>Compartir</b> (el cuadro con la flecha).</li><li>Elige <b>Agregar a pantalla de inicio</b>.</li></ol>`
+        : `<ol class="pasos"><li>Si la abriste desde otra app o en una vista rápida (con una <b>X</b> arriba a la izquierda), toca <b>⋮</b> y elige <b>Abrir en Brave</b> o <b>Abrir en Chrome</b>.</li><li>Ya en el navegador, toca <b>⋮</b> y elige <b>Instalar app</b> o <b>Agregar a pantalla de inicio</b>.</li></ol>`}
+      <div class="copiar"><input id="urlApp" readonly value="${esc(url)}" aria-label="Enlace de Cronograma"><button type="button" class="btn chico" data-accion="copiar-url">Copiar</button></div>
+    </div>`);
+}
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); pedidoInstalar = e; botonInstalar(); });
+window.addEventListener('appinstalled', () => { pedidoInstalar = null; botonInstalar(); toast('Cronograma instalado'); });
+
 // ---------- tema ----------
 function aplicarTema() {
   const t = S.ajustes.tema;
@@ -764,7 +795,7 @@ function aplicarTema() {
   else if (t === 'oscuro') document.documentElement.dataset.theme = 'dark';
   else delete document.documentElement.dataset.theme;
   const oscuro = t === 'oscuro' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
-  $('meta[name=theme-color]').setAttribute('content', oscuro ? '#16251E' : '#E6EFE0');
+  $('meta[name=theme-color]').setAttribute('content', oscuro ? '#11161E' : '#F2F4F7');
 }
 
 // ---------- navegación ----------
@@ -805,6 +836,13 @@ function alClic(ev) {
     case 'ajustes': return hojaAjustes();
     case 'como-alarmas': return hojaComoAlarmas();
     case 'notifs': return activarNotifs();
+    case 'instalar': return instalar();
+    case 'copiar-url': {
+      const inp = $('#urlApp');
+      navigator.clipboard?.writeText(inp.value).then(() => toast('Enlace copiado'), () => { inp.select(); toast('Mantén presionado el enlace para copiarlo'); })
+        ?? (inp.select(), toast('Mantén presionado el enlace para copiarlo'));
+      return;
+    }
     case 'ics-todo': {
       const now = NOW();
       return exportarEvals(L.ordenarEvals(S.evals.filter(e => L.pendiente(e, now))), 'evaluaciones-pendientes.ics');
@@ -826,6 +864,8 @@ function iniciar() {
   document.addEventListener('change', ev => { if (ev.target.id === 'filtroMateria') { filtro.materia = ev.target.value; renderAgenda(); } });
   $('#fab').onclick = () => hojaFormEval(null);
   $('#btnAjustes').onclick = hojaAjustes;
+  $('#btnInstalar').onclick = instalar;
+  botonInstalar();
   sheet().addEventListener('click', ev => { if (ev.target === sheet()) cerrarHoja(); }); // toque fuera de la hoja
   window.addEventListener('hashchange', () => { mostrarVista(); window.scrollTo(0, 0); });
   matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', aplicarTema);
@@ -843,6 +883,14 @@ function iniciar() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tic(); });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    const habia = !!navigator.serviceWorker.controller;
+    let recargado = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!habia || recargado) return; // primera instalación: no hace falta recargar
+      recargado = true;
+      if (sheet().open) toast('Hay una versión nueva. Cierra y vuelve a abrir la app para verla.');
+      else location.reload();
+    });
     navigator.serviceWorker.register('sw.js').then(r => { swReg = r; revisarAvisos(); }).catch(() => revisarAvisos());
     navigator.serviceWorker.addEventListener?.('message', ev => { if (ev.data?.ev) hojaEval(ev.data.ev); });
   } else revisarAvisos();

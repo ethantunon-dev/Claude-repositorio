@@ -1,5 +1,5 @@
 // Service worker de Cronograma: la app funciona sin conexión y abre la evaluación al tocar un aviso.
-const VERSION = 'v1.0.0';
+const VERSION = 'v1.1.0';
 const CACHE = 'cronograma-' + VERSION;
 const FILES = [
   './', './index.html', './manifest.webmanifest', './css/styles.css', './fonts/archivo.woff2',

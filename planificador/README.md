@@ -1,7 +1,7 @@
 # Cronograma
 
 Planificador universitario para el celular: semestrales, parciales, talleres, tareas y horario de clases, con alarmas en el calendario del teléfono.
-Viene cargado con el II semestre 2026 (grupo 1IC133). Gratis, sin cuenta, sin anuncios y funciona sin conexión. Es hermana de Escáner Libre y se publica en `/planificador/`.
+Viene cargado con el II semestre 2026 (grupo 1IC133). Gratis, sin cuenta, sin anuncios y funciona sin conexión. Vive junto a Escáner Libre y se publica en `/planificador/`.
 
 ## Qué hace
 
@@ -12,6 +12,7 @@ Viene cargado con el II semestre 2026 (grupo 1IC133). Gratis, sin cuenta, sin an
 | **Horario** | Semana de clases con la hora actual marcada; los laboratorios van rayados. Botón para mandar el horario al calendario (se repite cada semana hasta el último día de clases y salta los feriados). |
 | **Materias** | Profesor, código y fecha del semestral. Notas con peso: promedio, letra (escala UTP) y cuánto necesitas en lo que falta para llegar a la nota mínima. |
 | **+** | Nueva evaluación en pocos toques: la fecha, la hora y el aula se llenan solas con la próxima clase de esa materia. Avisa si el día es feriado. |
+| **Instalar** | Botón arriba a la derecha: instala la app si el navegador lo permite o explica los pasos (vista rápida de Brave/Chrome, iPhone). |
 | **Ajustes** | Avisos de fábrica por tipo, último día de clases, aviso antes de clase, nota mínima, tema y copia de seguridad (.json). |
 
 ## Alarmas
@@ -29,7 +30,7 @@ Si una evaluación cambia después de mandarla al calendario, su ícono pasa a a
 | Archivo | Para qué sirve |
 |---|---|
 | `index.html` | Estructura: cabecera, 4 vistas, barra inferior, botón +, hoja inferior. |
-| `css/styles.css` | Estilos (papel de ingeniería / pizarra, como Escáner Libre). |
+| `css/styles.css` | Estilos: gris porcelana y azul tinta (claro), azul noche (oscuro), dorado tenue para hoy y feriados. |
 | `js/logic.js` | Lógica pura: fechas, avisos, `.ics` (RFC 5545), enlace de Google Calendar, notas, feriados de Panamá (con Carnaval y Viernes Santo calculados). |
 | `js/seed.js` | Datos iniciales del semestre: materias, horario, parciales y semestrales. |
 | `js/app.js` | Interfaz y estado (localStorage). |

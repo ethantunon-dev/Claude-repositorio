@@ -160,14 +160,48 @@ try {
   ok(errores.length === 0, 'sin errores de consola (oscuro): ' + errores.join(' | '));
   await ctx.close();
 
-  // 9) Convivencia con Escáner Libre en el mismo sitio
+  // 9) Pantallas angostas (y letra agrandada): nada se sale por los lados
+  for (const w of [320, 360, 412]) {
+    ({ ctx, page, errores } = await nuevo({ viewport: { width: w, height: 760 } }));
+    await page.goto(BASE + '?ahora=2026-11-17T22:00');
+    await page.waitForSelector('.hero');
+    for (const v of ['hoy', 'agenda', 'horario', 'materias']) {
+      await page.click(`.tabbar [data-vista=${v}]`); await page.waitForTimeout(80);
+      const anchos = await page.evaluate(() => ({ doc: document.documentElement.scrollWidth, vw: innerWidth,
+        fuera: [...document.querySelectorAll('main *, .top *')].filter(el => { const r = el.getBoundingClientRect(); return r.width && (r.right > innerWidth + 1 || r.left < -1); }).slice(0, 3).map(el => el.className || el.tagName) }));
+      ok(anchos.doc <= anchos.vw && !anchos.fuera.length, `${w}px ${v}: sin desbordes ${anchos.fuera.join(', ')}`);
+    }
+    for (const abrir of [() => page.click('#btnAjustes'), () => page.click('#fab'), () => page.click('#btnInstalar')]) {
+      await abrir(); await page.waitForTimeout(300);
+      const fuera = await page.evaluate(() => [...document.querySelectorAll('#sheetBody *')].filter(el => { const r = el.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).slice(0, 3).map(el => el.className || el.tagName));
+      ok(!fuera.length, `${w}px hoja ${await page.textContent('.hoja-h h2')}: sin desbordes ${fuera.join(', ')}`);
+      await page.click('[data-cerrar]');
+    }
+    if (w === 360) await page.screenshot({ path: `${OUT}/10-hoy-360.png`, fullPage: true });
+    ok(errores.length === 0, `${w}px sin errores: ` + errores.join(' | '));
+    await ctx.close();
+  }
+
+  // 10) Botón Instalar
   ({ ctx, page, errores } = await nuevo());
-  await page.goto('http://127.0.0.1:8765/');
+  await page.goto(BASE);
+  ok(await page.isVisible('#btnInstalar'), 'botón Instalar visible en el navegador');
+  await page.click('#btnInstalar');
+  await page.waitForSelector('.hoja-h h2:has-text("Instalar Cronograma")');
+  ok((await page.textContent('#sheetBody')).includes('Instalar app'), 'hoja con los pasos para instalar');
+  await page.screenshot({ path: `${OUT}/11-instalar.png` });
+  await ctx.close();
+
+  // 11) Convivencia con Escáner Libre en el mismo sitio
+  ({ ctx, page, errores } = await nuevo());
+  // el Escáner intenta bajar librerías de la CDN (bloqueada en este entorno): se reintenta la carga
+  const irRaiz = async () => { for (let i = 0; i < 3; i++) { try { await page.goto('http://127.0.0.1:8765/', { waitUntil: 'domcontentloaded' }); return; } catch (e) { if (i === 2) throw e; } } };
+  await irRaiz();
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.goto(BASE);
   await page.waitForSelector('#tituloVista', { timeout: 5000 });
   ok(await page.title() === 'Cronograma', 'con Escáner instalado, /planificador/ abre Cronograma');
-  await page.goto('http://127.0.0.1:8765/');
+  await irRaiz();
   ok((await page.title()) !== 'Cronograma', 'Escáner sigue abriendo en la raíz');
   await ctx.close();
 } catch (e) {
