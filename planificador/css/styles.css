@@ -94,6 +94,7 @@ button { cursor: pointer; }
 .ic { width: 22px; height: 22px; flex: none; }
 .muted { color: var(--muted); }
 .small { font-size: 14px; }
+.nw { white-space: nowrap; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- cabecera ---------- */
@@ -438,6 +439,29 @@ legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 6px; colo
 .tn-f small { color: var(--muted); font-size: 12.5px; }
 .tn-f input { min-height: 40px; padding: 6px 8px; text-align: right; }
 .resumen-notas { font-weight: 600; }
+
+/* ---------- semestre, importar e historial ---------- */
+.hz-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 0 2px; }
+.hz-top b { font-size: 16px; font-weight: 620; }
+.bloque.vacio-g { padding: 22px 18px; }
+.imp-ms { display: grid; border-top: 1px solid var(--line); }
+.imp-m { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 11em); gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.imp-m > span { display: grid; min-width: 0; }
+.imp-m b { font-weight: 600; overflow-wrap: anywhere; }
+.imp-m small { font-size: 13px; overflow-wrap: anywhere; }
+.imp-m select { min-height: 40px; padding: 6px 10px; font-size: 15px; }
+.imp-cl { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.imp-cl li { display: grid; gap: 2px; font-size: 14.5px; }
+.imp-cl li b { font-weight: 620; }
+.imp-cl li span { color: var(--ink-2); overflow-wrap: anywhere; }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; }
+.hist li { display: grid; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+.hist li:first-child { border-top: 0; }
+.hist li > span:first-child { display: grid; }
+.sem-filas { display: grid; border-top: 1px solid var(--line); }
+.form label.sem-fila { grid-template-columns: minmax(0, 1fr) minmax(0, 10.5em); align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-weight: 560; color: var(--ink); }
+.sem-fila > span { overflow-wrap: anywhere; }
+.sem-fila input { min-height: 40px; }
 
 /* ---------- barra inferior y botón agregar ---------- */
 .tabbar {

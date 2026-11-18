@@ -11,6 +11,8 @@ const E = (id, materiaId, tipo, fecha, ini, fin, aula, extra = {}) => ({
 export function datosIniciales() {
   return {
     version: 1,
+    semestre: 'II semestre 2026',
+    historial: [], // semestres anteriores guardados: { id, nombre, guardado, materias, clases, evals, finClases }
     materias: [
       M('hid', 'Hidráulica', 'Hidráulica', '8020', 'Luis Muñoz', 'azul'),
       M('pla', 'Interpretación de Planos y Especificaciones', 'Interp. Planos', '8029', 'Alfredo Herrera', 'violeta'),

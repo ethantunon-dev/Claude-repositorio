@@ -2,6 +2,7 @@
 // hojas inferiores para ver y editar, avisos dentro de la app y exportación al calendario.
 import * as L from './logic.js';
 import { datosIniciales } from './seed.js';
+import { parseHorarioUTP, parseSemestrales, emparejar, nombreBonito } from './importar.js';
 
 const KEY = 'cronograma.v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -24,7 +25,7 @@ function normalizar(d) {
   const arr = v => Array.isArray(v) ? v : [];
   return {
     ...base, ...d,
-    materias: arr(d.materias), clases: arr(d.clases), evals: arr(d.evals),
+    materias: arr(d.materias), clases: arr(d.clases), evals: arr(d.evals), historial: arr(d.historial),
     ajustes: { ...base.ajustes, ...(d.ajustes || {}) },
     mostrados: d.mostrados || {}, vistos: d.vistos || {},
   };
@@ -61,6 +62,7 @@ const I = {
   cerrar: '<path d="M6 6l12 12M18 6L6 18"/>',
   campana: '<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  subir: '<path d="M12 16V4M7 8.5l5-5 5 5M5 20h14"/>',
   link: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
 };
 const icon = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${I[n]}</svg>`;
@@ -107,7 +109,7 @@ function filaEval(e, now) {
     <span class="ev-dia"><b>${ini.getDate()}</b><small>${L.DIAS_CORTO[ini.getDay()]}</small></span>
     <span class="ev-main">
       <span class="ev-t"><i class="hito" aria-hidden="true"></i>${esc(L.tituloDe(e, m))}</span>
-      <span class="ev-s">${H(e.ini)}${e.aula ? `, aula ${esc(e.aula)}` : ''} <span class="rel">${L.relativo(ini, now)}</span></span>
+      <span class="ev-s">${H(e.ini)}${e.aula ? `, <span class="nw">aula ${esc(e.aula)}</span>` : ''} <span class="rel">${L.relativo(ini, now)}</span></span>
       ${chipsEval(e) ? `<span class="chips">${chipsEval(e)}</span>` : ''}
     </span>
     <span class="ev-cal cal-${cal}" title="${calTxt}"><span class="sr">${calTxt}</span>${icon(cal === 'ok' ? 'calOk' : cal === 'cambio' ? 'calWarn' : 'cal')}</span>
@@ -123,6 +125,9 @@ function textoCuenta(ms) {
 }
 
 function heroHTML(now) {
+  if (!S.materias.length) return `<section class="hero vacio"><p class="hero-t">Empieza ${esc(S.semestre || 'el semestre')}</p>
+    <p class="muted">Importa el PDF de tu horario de la UTP y se arman solas tus materias y clases.</p>
+    <div class="hero-acc"><button type="button" class="btn primario" data-accion="importar-pdf">${icon('subir')}Importar horario (PDF)</button><button type="button" class="btn suave" data-accion="nueva-materia">Agregar materia</button></div></section>`;
   const e = L.proximoExamen(S.evals, now) || L.proximaEval(S.evals, now);
   if (!e) return `<section class="hero vacio"><p class="hero-t">No tienes exámenes ni entregas pendientes.</p><p class="muted">Toca <b>+</b> para agregar uno.</p></section>`;
   const m = mat(e.materiaId), ini = L.inicioDe(e), fin = L.finDe(e);
@@ -313,7 +318,13 @@ function renderHorario() {
   }).join('');
   const head = dias.map(d => { const f = L.addDays(lunes, d - 1); return `<span class="${d === hoyDia ? 'hoy' : ''}">${cap(L.DIAS_CORTO[d % 7])}<small>${f.getDate()}</small></span>`; }).join('');
   const fin = L.parseYMD(S.ajustes.finClases);
-  $('#v-horario').innerHTML = `
+  const cabecera = `<div class="hz-top"><b>${esc(S.semestre || 'Semestre')}</b><button type="button" class="btn chico suave" data-accion="semestre">Cambiar horario</button></div>`;
+  if (!valid.length) {
+    $('#v-horario').innerHTML = cabecera + `<div class="bloque vacio-g"><p class="vacio-t">Todavía no tienes clases en este semestre.</p>
+      <div class="fila-btn"><button type="button" class="btn primario" data-accion="importar-pdf">${icon('subir')}Importar horario (PDF de la UTP)</button><button type="button" class="btn" data-accion="nueva-materia">Agregar materia</button></div></div>`;
+    return;
+  }
+  $('#v-horario').innerHTML = cabecera + `
     <div class="hz" style="--cols:${dias.length}">
       <div class="hz-head"><span></span>${head}</div>
       <div class="hz-body" style="height:${alto}px"><div class="hz-ejes">${horas}</div>${cols}</div>
@@ -330,6 +341,11 @@ function renderHorario() {
 function renderMaterias() {
   const now = NOW();
   const aj = S.ajustes;
+  if (!S.materias.length) {
+    $('#v-materias').innerHTML = `<div class="bloque vacio-g"><p class="vacio-t">No hay materias en ${esc(S.semestre || 'este semestre')}.</p>
+      <div class="fila-btn"><button type="button" class="btn primario" data-accion="importar-pdf">${icon('subir')}Importar horario (PDF de la UTP)</button><button type="button" class="btn" data-accion="nueva-materia">${icon('mas')}Agregar materia</button></div></div>`;
+    return;
+  }
   $('#v-materias').innerHTML = `<div class="mats">${S.materias.map(m => {
     const evs = S.evals.filter(e => e.materiaId === m.id);
     const sem = L.ordenarEvals(evs.filter(e => e.tipo === 'semestral'))[0];
@@ -347,7 +363,7 @@ function renderMaterias() {
       <span class="small">${pend ? `${pend} pendiente${pend === 1 ? '' : 's'}. ` : ''}${nota}</span>
     </button>`;
   }).join('')}</div>
-  <div class="fila-btn"><button type="button" class="btn" data-accion="nueva-materia">${icon('mas')}Agregar materia</button></div>`;
+  <div class="fila-btn"><button type="button" class="btn" data-accion="nueva-materia">${icon('mas')}Agregar materia</button><button type="button" class="btn suave" data-accion="semestre">Semestre y horario</button></div>`;
 }
 
 // ---------- hojas: evaluación ----------
@@ -634,6 +650,7 @@ function hojaAjustes() {
     </section>
     <form id="fAj" class="form sub" novalidate>
       <h3>Semestre</h3>
+      <div class="fila-dato"><span>${esc(S.semestre || 'Semestre')}<small class="muted">${S.materias.length} materias, ${S.clases.length} clases</small></span><button type="button" class="btn chico" data-accion="semestre">Cambiar horario</button></div>
       <div class="dos">
         <label>Último día de clases<input type="date" name="finClases" id="fa-fin" value="${esc(aj.finClases)}"></label>
         <label>Aviso antes de clase<select name="avisoClase" id="fa-aviso">${[[0, 'Sin aviso'], [5, '5 min'], [10, '10 min'], [15, '15 min'], [30, '30 min'], [60, '1 h']].map(([v, t]) => `<option value="${v}" ${+aj.avisoClase === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
@@ -660,7 +677,7 @@ function hojaAjustes() {
       ev.preventDefault();
       const nm = +f.notaMin.value;
       if (!(nm >= 0 && nm <= 100)) { f.notaMin.classList.add('inv'); toast('La nota mínima va de 0 a 100.'); return; }
-      if (!L.parseYMD(f.finClases.value)) { f.finClases.classList.add('inv'); toast('Pon una fecha válida para el último día de clases.'); return; }
+      if (f.finClases.value && !L.parseYMD(f.finClases.value)) { f.finClases.classList.add('inv'); toast('Pon una fecha válida para el último día de clases.'); return; }
       const porTipo = {};
       let distinto = false;
       for (const [k, t] of Object.entries(L.TIPOS)) {
@@ -682,7 +699,7 @@ function hojaAjustes() {
     $('[data-pedir-reset]', root).onclick = () => {
       $('[data-confirmar]', root).innerHTML = '<span class="small">Se pierde todo lo que agregaste o cambiaste.</span><button type="button" class="btn peligro" data-si>Sí, volver a empezar</button><button type="button" class="btn" data-no>No</button>';
       $('[data-no]', root).onclick = hojaAjustes;
-      $('[data-si]', root).onclick = () => { S = datosIniciales(); guardar(); aplicarTema(); renderTodo(); cerrarHoja(); toast('Datos restaurados'); };
+      $('[data-si]', root).onclick = () => { S = { ...datosIniciales(), historial: S.historial }; guardar(); aplicarTema(); renderTodo(); cerrarHoja(); toast('Datos restaurados'); };
     };
   });
 }
@@ -702,6 +719,278 @@ function hojaComoAlarmas() {
       <p>Si activas los avisos dentro de la app, te avisa mientras la tienes abierta o la acabas de usar, y la pantalla Hoy te muestra lo que se acerca cada vez que la abres.</p>
       <p class="small muted">Si cambias una evaluación que ya estaba en el calendario, aparece un ícono de alerta. Agrégala otra vez y borra la versión vieja.</p>
     </div>`);
+}
+
+// ---------- semestre, horario e historial ----------
+const hayDatos = () => !!(S.materias.length || S.clases.length || S.evals.length);
+const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+function siguienteSemestre(nombre) {
+  const m = /^(I|II)\s+semestre\s+(\d{4})$/i.exec((nombre || '').trim());
+  if (!m) return '';
+  return m[1].toUpperCase() === 'I' ? `II semestre ${m[2]}` : `I semestre ${+m[2] + 1}`;
+}
+function colorLibre(usados) { return L.COLORES.find(c => !usados.has(c)) || L.COLORES[usados.size % L.COLORES.length]; }
+const corto18 = n => n.length <= 18 ? n : n.slice(0, 18).replace(/[\s.,]+\S*$/, '').trim() || n.slice(0, 18);
+
+function hojaSemestre() {
+  abrirHoja(`
+    <div class="hoja-h"><div><p class="small muted">Semestre actual</p><h2>${esc(S.semestre || 'Sin nombre')}</h2></div><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
+    <p class="small muted">${plural(S.materias.length, 'materia', 'materias')}, ${plural(S.clases.length, 'clase', 'clases')} a la semana y ${plural(S.evals.length, 'evaluación', 'evaluaciones')}.</p>
+    <section class="sub">
+      <h3>Cambiar el horario</h3>
+      <div class="grupo-btn">
+        <button type="button" class="btn primario ancho" data-accion="importar-pdf">${icon('subir')}Importar horario (PDF de la UTP)</button>
+        <button type="button" class="btn ancho" data-accion="semestrales">${icon('cal')}Cargar fechas de semestrales</button>
+        <button type="button" class="btn ancho" data-accion="nueva-materia">${icon('mas')}Agregar una materia a mano</button>
+      </div>
+      <p class="small muted">Para cambiar una sola clase, toca la materia en Materias o en el Horario.</p>
+    </section>
+    <section class="sub">
+      <h3>Semestre nuevo</h3>
+      <p class="small">Guarda este semestre, con sus notas, en el historial y deja la app lista para el siguiente.</p>
+      <button type="button" class="btn ancho" data-accion="nuevo-semestre">Empezar semestre nuevo</button>
+    </section>
+    ${S.historial.length ? `<section class="sub"><h3>Semestres anteriores</h3><ul class="hist">${S.historial.map(h => {
+      const g = new Date(h.guardado);
+      return `<li><span><b>${esc(h.nombre)}</b><small class="muted">${plural(h.materias.length, 'materia', 'materias')}, ${plural(h.evals.length, 'evaluación', 'evaluaciones')}. Guardado el ${g.getDate()} de ${L.MESES[g.getMonth()]} de ${g.getFullYear()}.</small></span>
+        <span class="confirmar" data-hist="${esc(h.id)}"><button type="button" class="btn chico" data-volver="${esc(h.id)}">Volver a este</button><button type="button" class="btn chico peligro" data-borrar-hist="${esc(h.id)}">Borrar</button></span></li>`;
+    }).join('')}</ul></section>` : ''}`, root => {
+    $$('[data-volver]', root).forEach(b => b.onclick = () => {
+      const h = S.historial.find(x => x.id === b.dataset.volver);
+      const caja = b.parentElement;
+      caja.innerHTML = `<span class="small">${hayDatos() ? `${esc(S.semestre)} se guarda en el historial.` : ''} ¿Volver a ${esc(h.nombre)}?</span><button type="button" class="btn chico primario" data-si>Sí, volver</button><button type="button" class="btn chico" data-no>No</button>`;
+      $('[data-no]', caja).onclick = hojaSemestre;
+      $('[data-si]', caja).onclick = () => volverA(h.id);
+    });
+    $$('[data-borrar-hist]', root).forEach(b => b.onclick = () => {
+      const h = S.historial.find(x => x.id === b.dataset.borrarHist);
+      const caja = b.parentElement;
+      caja.innerHTML = `<span class="small">Se borra ${esc(h.nombre)} con sus notas.</span><button type="button" class="btn chico peligro" data-si>Sí, borrar</button><button type="button" class="btn chico" data-no>No</button>`;
+      $('[data-no]', caja).onclick = hojaSemestre;
+      $('[data-si]', caja).onclick = () => { S.historial = S.historial.filter(x => x.id !== h.id); guardar(); toast('Semestre borrado del historial'); hojaSemestre(); };
+    });
+  });
+}
+
+function archivarActual() {
+  S.historial.unshift({ id: uid(), nombre: S.semestre || 'Semestre sin nombre', guardado: Date.now(), materias: S.materias, clases: S.clases, evals: S.evals, finClases: S.ajustes.finClases || '' });
+}
+function volverA(id) {
+  const h = S.historial.find(x => x.id === id);
+  if (!h) return;
+  S.historial = S.historial.filter(x => x.id !== id);
+  if (hayDatos()) archivarActual();
+  Object.assign(S, { semestre: h.nombre, materias: h.materias || [], clases: h.clases || [], evals: h.evals || [] });
+  S.ajustes.finClases = h.finClases || '';
+  guardar(); renderTodo(); toast(`Volviste a ${h.nombre}`); hojaSemestre();
+}
+
+function hojaNuevoSemestre() {
+  const hay = hayDatos();
+  abrirHoja(`
+    <div class="hoja-h"><h2>Empezar semestre nuevo</h2><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
+    <form id="fNuevo" class="form" novalidate>
+      <label>Nombre del semestre<input name="nombre" id="fn-nombre" maxlength="40" value="${esc(siguienteSemestre(S.semestre))}" placeholder="I semestre 2027" required></label>
+      <label><span>Último día de clases <span class="muted">(opcional)</span></span><input type="date" name="fin" id="fn-fin"></label>
+      ${hay ? `<label class="check"><input type="checkbox" name="guardarlo" id="fn-guardar" checked><span>Guardar ${esc(S.semestre || 'el semestre actual')} en el historial, con sus notas</span></label>` : ''}
+      <p class="small muted">El semestre nuevo empieza sin materias, clases ni evaluaciones. Después importas tu horario.</p>
+      <p class="form-err" id="fn-err" role="alert" hidden></p>
+      <div class="fila-btn fin"><button type="button" class="btn" data-cerrar>Cancelar</button><button type="submit" class="btn primario">Empezar semestre nuevo</button></div>
+    </form>`, root => {
+    const f = $('#fNuevo', root), err = $('#fn-err', root);
+    let avisado = false;
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const nombre = f.nombre.value.trim();
+      if (!nombre) { err.textContent = 'Ponle nombre al semestre.'; err.hidden = false; f.nombre.classList.add('inv'); f.nombre.focus(); return; }
+      if (f.fin.value && !L.parseYMD(f.fin.value)) { err.textContent = 'La fecha no es válida.'; err.hidden = false; return; }
+      const guardarlo = hay && f.guardarlo.checked;
+      if (hay && !guardarlo && !avisado) { avisado = true; err.textContent = 'Sin guardarlo se pierde todo lo del semestre actual. Toca otra vez para confirmar.'; err.hidden = false; return; }
+      if (guardarlo) archivarActual();
+      Object.assign(S, { semestre: nombre, materias: [], clases: [], evals: [] });
+      S.ajustes.finClases = f.fin.value || '';
+      guardar(); renderTodo(); location.hash = 'horario';
+      toast(`Listo: ${nombre}. Ahora importa tu horario.`);
+      hojaSemestre();
+    };
+  });
+}
+
+function hojaAviso(titulo, texto) {
+  abrirHoja(`<div class="hoja-h"><h2>${esc(titulo)}</h2><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
+    <p>${esc(texto)}</p><div class="fila-btn fin"><button type="button" class="btn" data-accion="semestre">Volver</button></div>`);
+}
+
+function elegirPDF() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'application/pdf,.pdf';
+  inp.onchange = () => { const f = inp.files[0]; if (f) importarPDF(f); };
+  inp.click();
+}
+async function importarPDF(file) {
+  toast('Leyendo el PDF…');
+  try {
+    const { itemsDePDF } = await import('./pdf.js');
+    const items = await itemsDePDF(file);
+    if (!items.length) return hojaAviso('No se pudo importar', 'Ese PDF no tiene texto: parece una foto o un escaneo. Usa el PDF "Horario de clases" que descargas de la página de la UTP.');
+    const res = parseHorarioUTP(items);
+    if (!res.clases.length) return hojaAviso('No se pudo importar', 'No encontré un horario en ese PDF. Usa el PDF "Horario de clases" que descargas de la página de la UTP.');
+    hojaVistaHorario(res);
+  } catch (e) {
+    hojaAviso('No se pudo importar', e?.propio ? e.message : 'No se pudo leer ese PDF. Prueba descargarlo otra vez.');
+  }
+}
+
+function hojaVistaHorario(res) {
+  const usados = new Set();
+  const pre = res.materias.map(m => {
+    const e = emparejar(m.nombre, S.materias, usados) || emparejar(m.original, S.materias, usados);
+    if (e) usados.add(e.id);
+    return e ? e.id : 'nueva';
+  });
+  const porDia = [1, 2, 3, 4, 5, 6, 7].map(d => ({ d, cl: res.clases.filter(c => c.dia === d) })).filter(x => x.cl.length);
+  const nombreDe = key => res.materias.find(m => m.key === key)?.nombre || key;
+  abrirHoja(`
+    <div class="hoja-h"><div><p class="small muted">${esc(res.semestre || 'Horario leído del PDF')}</p><h2>${plural(res.materias.length, 'materia', 'materias')} y ${plural(res.clases.length, 'clase', 'clases')}</h2></div><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
+    <section class="sub">
+      <h3>Materias</h3>
+      ${S.materias.length ? '<p class="small muted">Revisa a cuál de tus materias corresponde cada una. Así se conservan sus notas y evaluaciones.</p>' : ''}
+      <div class="imp-ms">${res.materias.map((m, i) => `<label class="imp-m"><span><b>${esc(m.nombre)}</b><small class="muted">${plural(m.clases, 'clase', 'clases')}</small></span>
+        <select data-imp="${i}" aria-label="Materia para ${esc(m.nombre)}"><option value="nueva" ${pre[i] === 'nueva' ? 'selected' : ''}>Nueva materia</option>${S.materias.map(x => `<option value="${esc(x.id)}" ${pre[i] === x.id ? 'selected' : ''}>${esc(x.corto || x.nombre)}</option>`).join('')}</select></label>`).join('')}</div>
+    </section>
+    <section class="sub">
+      <h3>Clases</h3>
+      <ul class="imp-cl">${porDia.map(x => `<li><b>${cap(L.DIAS[x.d % 7])}</b>${x.cl.map(c => `<span>${H(c.ini)} a ${H(c.fin)}: ${esc(nombreDe(c.key))}${c.tipo === 'lab' ? ' (lab)' : ''}${c.grupo ? ` (grupo ${esc(c.grupo)})` : ''}${c.aula ? `, <span class="nw">aula ${esc(c.aula)}</span>` : ''}</span>`).join('')}</li>`).join('')}</ul>
+    </section>
+    ${S.clases.length ? `<p class="nota-warn">Se reemplazan las ${S.clases.length} clases que tienes ahora. Las evaluaciones y notas no se tocan.</p>` : ''}
+    <p class="form-err" id="imp-err" role="alert" hidden></p>
+    <div class="fila-btn fin"><button type="button" class="btn" data-cerrar>Cancelar</button><button type="button" class="btn primario" id="usarHorario">Usar este horario</button></div>`, root => {
+    $('#usarHorario', root).onclick = () => {
+      const eleccion = $$('[data-imp]', root).map(x => x.value);
+      const elegidas = eleccion.filter(v => v !== 'nueva');
+      if (new Set(elegidas).size !== elegidas.length) {
+        const er = $('#imp-err', root); er.textContent = 'Dos materias del PDF apuntan a la misma materia. Corrige la selección.'; er.hidden = false; return;
+      }
+      const colores = new Set(S.materias.map(m => m.color));
+      const ids = res.materias.map((m, i) => {
+        if (eleccion[i] !== 'nueva') return eleccion[i];
+        const color = colorLibre(colores); colores.add(color);
+        const nm = { id: uid(), nombre: m.nombre, corto: corto18(m.nombre), codigo: '', docente: '', color };
+        S.materias.push(nm);
+        return nm.id;
+      });
+      const idDe = Object.fromEntries(res.materias.map((m, i) => [m.key, ids[i]]));
+      S.clases = res.clases.map(c => ({ id: uid(), materiaId: idDe[c.key], dia: c.dia, ini: c.ini, fin: c.fin, aula: c.aula, tipo: c.tipo, grupo: c.grupo }));
+      if (res.semestre && !S.evals.length) S.semestre = res.semestre;
+      guardar(); renderTodo(); cerrarHoja(); location.hash = 'horario';
+      toast(`Horario importado: ${plural(res.clases.length, 'clase', 'clases')}`);
+    };
+  });
+}
+
+function guardarSemestral(materiaId, datos) {
+  const ex = L.ordenarEvals(S.evals.filter(e => e.materiaId === materiaId && e.tipo === 'semestral'))[0];
+  if (ex) {
+    const antes = L.firmaCal(ex, S.ajustes);
+    Object.assign(ex, datos);
+    if (ex.calFirma && antes !== L.firmaCal(ex, S.ajustes)) ex.seq = (ex.seq || 0) + 1;
+    return 'cambio';
+  }
+  S.evals.push({ id: uid(), materiaId, tipo: 'semestral', titulo: '', ini: '08:00', fin: '', aula: '', peso: '', nota: '', notas: '', hecho: false, fechaTBD: false, horaTBD: !datos.ini, avisos: null, seq: 0, ...datos });
+  return 'nuevo';
+}
+
+function hojaSemestrales() {
+  const semDe = m => L.ordenarEvals(S.evals.filter(e => e.materiaId === m.id && e.tipo === 'semestral'))[0];
+  const ref = S.materias.map(semDe).find(Boolean);
+  abrirHoja(`
+    <div class="hoja-h"><h2>Fechas de semestrales</h2><button type="button" class="x" data-cerrar aria-label="Cerrar">${icon('cerrar')}</button></div>
+    <section class="sub">
+      <h3>Pegar el calendario de la UTP</h3>
+      <p class="small muted">En la página de la UTP, selecciona la tabla del calendario de exámenes semestrales, cópiala y pégala aquí. Se llenan las fechas, el aula, el nombre completo, el código y el profesor.</p>
+      <label class="sr" for="txtSem">Calendario de semestrales</label>
+      <textarea id="txtSem" rows="4" placeholder="8020  HIDRAULICA  8900  1IC133  1-107  07/12/2026  12:50 PM - 02:50 PM  MUÑOZ, LUIS"></textarea>
+      <div class="fila-btn"><button type="button" class="btn" id="leerSem">Leer el texto</button></div>
+      <div id="vistaSem" class="sub" hidden></div>
+    </section>
+    <form id="fSemMan" class="form sub" novalidate>
+      <h3>O ponlas a mano</h3>
+      ${S.materias.length ? `<div class="tres">
+          <label>Empieza<input type="time" name="ini" id="sm-ini" value="${esc(ref?.ini || '12:50')}"></label>
+          <label>Termina<input type="time" name="fin" id="sm-fin" value="${esc(ref?.fin || '14:50')}"></label>
+          <label>Aula<input name="aula" id="sm-aula" maxlength="20" value="${esc(ref?.aula || '')}"></label>
+        </div>
+        <div class="sem-filas">${S.materias.map(m => `<label class="sem-fila" style="${colorVar(m)}"><span><i class="hito" aria-hidden="true"></i>${esc(m.corto || m.nombre)}</span><input type="date" name="f-${esc(m.id)}" data-sem="${esc(m.id)}" value="${esc(semDe(m)?.fecha || '')}"></label>`).join('')}</div>
+        <p class="form-err" id="sm-err" role="alert" hidden></p>
+        <div class="fila-btn fin"><button type="submit" class="btn primario">Guardar fechas</button></div>`
+      : '<p class="small muted">Primero importa tu horario o agrega tus materias.</p>'}
+    </form>`, root => {
+    $('#leerSem', root).onclick = () => {
+      const filas = parseSemestrales($('#txtSem', root).value);
+      const vista = $('#vistaSem', root);
+      vista.hidden = false;
+      if (!filas.length) { vista.innerHTML = '<p class="nota-warn">No encontré fechas en ese texto. Copia la tabla completa, con las fechas (dd/mm/aaaa) y las horas.</p>'; return; }
+      const usados = new Set();
+      const pre = filas.map(f => { const m = emparejar(f.nombre, S.materias, usados); if (m) usados.add(m.id); return m ? m.id : 'nueva'; });
+      vista.innerHTML = `<div class="imp-ms">${filas.map((f, i) => {
+        const d = L.parseYMD(f.fecha);
+        return `<label class="imp-m"><span><b>${esc(nombreBonito(f.nombre))}</b><small class="muted">${cap(L.fechaCorta(d))}${f.ini ? `, ${H(f.ini)}` : ''}${f.aula ? `, <span class="nw">aula ${esc(f.aula)}</span>` : ''}${f.docente ? `. ${esc(f.docente)}` : ''}</small></span>
+        <select data-fila="${i}" aria-label="Materia para ${esc(f.nombre)}"><option value="nueva" ${pre[i] === 'nueva' ? 'selected' : ''}>Nueva materia</option>${S.materias.map(x => `<option value="${esc(x.id)}" ${pre[i] === x.id ? 'selected' : ''}>${esc(x.corto || x.nombre)}</option>`).join('')}<option value="omitir">No agregar</option></select></label>`;
+      }).join('')}</div>
+        <label class="check"><input type="checkbox" id="semCompletar" checked><span>Completar nombre completo, código y profesor de cada materia</span></label>
+        <p class="form-err" id="sem-err" role="alert" hidden></p>
+        <div class="fila-btn fin"><button type="button" class="btn primario" id="guardarSem">Guardar ${plural(filas.length, 'semestral', 'semestrales')}</button></div>`;
+      $('#guardarSem', vista).onclick = () => {
+        const eleccion = $$('[data-fila]', vista).map(x => x.value);
+        const elegidas = eleccion.filter(v => v !== 'nueva' && v !== 'omitir');
+        if (new Set(elegidas).size !== elegidas.length) { const er = $('#sem-err', vista); er.textContent = 'Dos filas apuntan a la misma materia. Corrige la selección.'; er.hidden = false; return; }
+        const completar = $('#semCompletar', vista).checked;
+        const colores = new Set(S.materias.map(m => m.color));
+        let n = 0;
+        filas.forEach((f, i) => {
+          if (eleccion[i] === 'omitir') return;
+          const lindo = nombreBonito(f.nombre);
+          let m = mat(eleccion[i]);
+          if (!m) {
+            const color = colorLibre(colores); colores.add(color);
+            m = { id: uid(), nombre: lindo, corto: corto18(lindo), codigo: f.codigo, docente: f.docente, color };
+            S.materias.push(m);
+          } else if (completar) {
+            if (lindo.length > m.nombre.length) { if (!m.corto) m.corto = corto18(m.nombre); m.nombre = lindo; }
+            if (f.codigo) m.codigo = f.codigo;
+            if (f.docente) m.docente = f.docente;
+          }
+          const datos = { fecha: f.fecha, fechaTBD: false };
+          if (f.ini && f.fin) Object.assign(datos, { ini: f.ini, fin: f.fin, horaTBD: false });
+          if (f.aula) datos.aula = f.aula;
+          guardarSemestral(m.id, datos);
+          n++;
+        });
+        guardar(); renderTodo(); cerrarHoja(); location.hash = 'agenda';
+        toast(`${plural(n, 'semestral guardado', 'semestrales guardados')}`);
+      };
+    };
+    const f = $('#fSemMan', root);
+    f.onsubmit = ev => {
+      ev.preventDefault();
+      const er = $('#sm-err', root);
+      const ini = f.ini.value, fin = f.fin.value, aula = f.aula.value.trim();
+      if (!L.validHM(ini) || (fin && !L.validHM(fin)) || (fin && L.minutos(fin) <= L.minutos(ini))) { er.textContent = 'Revisa las horas: debe terminar después de empezar.'; er.hidden = false; return; }
+      let n = 0;
+      for (const inp of $$('[data-sem]', f)) {
+        if (!inp.value) continue;
+        if (!L.parseYMD(inp.value)) { er.textContent = 'Hay una fecha no válida.'; er.hidden = false; inp.classList.add('inv'); return; }
+      }
+      for (const inp of $$('[data-sem]', f)) {
+        if (!inp.value) continue;
+        guardarSemestral(inp.dataset.sem, { fecha: inp.value, ini, fin, aula, horaTBD: false, fechaTBD: false });
+        n++;
+      }
+      if (!n) { er.textContent = 'Pon al menos una fecha.'; er.hidden = false; return; }
+      guardar(); renderTodo(); cerrarHoja(); location.hash = 'agenda';
+      toast(`${plural(n, 'semestral guardado', 'semestrales guardados')}`);
+    };
+  });
 }
 
 // ---------- calendario y archivos ----------
@@ -729,7 +1018,8 @@ function exportarEvals(evals, nombre) {
 }
 function exportarHorario() {
   const fin = L.parseYMD(S.ajustes.finClases);
-  if (!fin || fin < L.startOfDay(NOW())) { toast('Las clases ya terminaron. Cambia el último día de clases en Ajustes.'); return; }
+  if (!fin) { toast('Pon el último día de clases en Ajustes para saber hasta cuándo se repite.'); hojaAjustes(); return; }
+  if (fin < L.startOfDay(NOW())) { toast('Las clases ya terminaron. Cambia el último día de clases en Ajustes.'); return; }
   if (!S.clases.length) { toast('No tienes clases guardadas.'); return; }
   descargar(L.buildICS({ clases: S.clases, materias: S.materias, ajustes: S.ajustes, now: NOW() }), 'horario-de-clases.ics', 'text/calendar');
   toast('Horario listo: guárdalo en tu calendario');
@@ -833,6 +1123,10 @@ function alClic(ev) {
   switch (ds.accion) {
     case 'nueva': return hojaFormEval(null);
     case 'nueva-materia': return hojaMateria(null);
+    case 'semestre': return hojaSemestre();
+    case 'importar-pdf': return elegirPDF();
+    case 'semestrales': return hojaSemestrales();
+    case 'nuevo-semestre': return hojaNuevoSemestre();
     case 'ajustes': return hojaAjustes();
     case 'como-alarmas': return hojaComoAlarmas();
     case 'notifs': return activarNotifs();
@@ -883,7 +1177,9 @@ function iniciar() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tic(); });
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    const habia = !!navigator.serviceWorker.controller;
+    // recargar solo si la página ya la atendía una versión anterior de Cronograma
+    // (no el service worker de Escáner Libre, que también cubre esta dirección)
+    const habia = navigator.serviceWorker.controller?.scriptURL === new URL('sw.js', location.href).href;
     let recargado = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!habia || recargado) return; // primera instalación: no hace falta recargar
