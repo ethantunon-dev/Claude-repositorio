@@ -142,11 +142,14 @@ export function warp(srcCanvas, cornersN) {
 }
 
 // ---------- Filtros ----------
+// Orden en que se muestran. Ninguno se aplica solo: la hoja empieza en «Original».
 export const FILTERS = {
   original: 'Original',
+  mejorado: 'Mejorado',
+  gris: 'Grises',
   blanca: 'Pizarra blanca',
-  verde: 'Pizarra verde',
-  bn: 'B/N documento',
+  verde: 'Pizarra oscura',
+  bn: 'Blanco y negro',
 };
 
 // Estima el fondo (iluminación) en baja resolución: filtro máx (fondo claro) o mín (fondo oscuro) + suavizado.
@@ -203,12 +206,50 @@ const clamp = (v, a = 0, b = 255) => v < a ? a : v > b ? b : v;
 
 export function applyFilter(canvas, filter) {
   if (filter === 'original' || !FILTERS[filter]) return canvas;
+  // «Pizarra oscura» sobre una hoja clara (p. ej. al aplicarlo a todas) se trata como pizarra blanca
+  // y al revés: sobre una pizarra oscura, «Grises», «Pizarra blanca» y «Blanco y negro» usan el de pizarra oscura
+  const dark = suggestFilter(canvas) === 'verde';
+  if (filter === 'verde' && !dark) filter = 'blanca';
+  else if (dark && (filter === 'gris' || filter === 'bn' || filter === 'blanca')) filter = 'verde';
+  else if (dark && filter === 'mejorado') filter = 'mejorado-oscuro';
   const w = canvas.width, h = canvas.height, ctx = canvas.getContext('2d', { willReadFrequently: true });
   const img = ctx.getImageData(0, 0, w, h), d = img.data, n = w * h;
   const gray = new Float32Array(n);
   for (let i = 0, j = 0; i < n; i++, j += 4) gray[i] = 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2];
 
-  if (filter === 'blanca') {
+  if (filter === 'mejorado-oscuro') {
+    // pizarra oscura en color: solo estira niveles y aviva un poco los colores
+    const sample = []; for (let i = 0; i < n; i += 13) sample.push(gray[i]);
+    sample.sort((a, b) => a - b);
+    const lo = sample[Math.floor(sample.length * 0.02)], hi = Math.max(lo + 30, sample[Math.floor(sample.length * 0.995)]);
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      const l = gray[i];
+      for (let c = 0; c < 3; c++) {
+        const v = l + (d[j + c] - l) * 1.2;
+        d[j + c] = clamp(255 * (v - lo) / (hi - lo));
+      }
+    }
+  } else if (filter === 'mejorado') {
+    // como «color mágico»: quita sombras y dominantes de color, conserva colores y tonos
+    const R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n);
+    for (let i = 0, j = 0; i < n; i++, j += 4) { R[i] = d[j]; G[i] = d[j + 1]; B[i] = d[j + 2]; }
+    const br = background(R, w, h, 'max'), bg = background(G, w, h, 'max'), bb = background(B, w, h, 'max');
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      let r = R[i] / Math.max(br[i], 1), g = G[i] / Math.max(bg[i], 1), b = B[i] / Math.max(bb[i], 1);
+      const l = 0.299 * r + 0.587 * g + 0.114 * b, sat = 1.25;
+      r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
+      const curve = v => { const t = clamp((v - 0.06) / 0.9, 0, 1); return 255 * Math.pow(t, 1.15); };
+      d[j] = curve(r); d[j + 1] = curve(g); d[j + 2] = curve(b);
+    }
+  } else if (filter === 'gris') {
+    // escala de grises con fondo parejo y contraste moderado
+    const bgk = background(gray, w, h, 'max');
+    for (let i = 0, j = 0; i < n; i++, j += 4) {
+      const r = gray[i] / Math.max(bgk[i], 1);
+      const v = 255 * Math.pow(clamp((r - 0.1) / 0.86, 0, 1), 1.3);
+      d[j] = d[j + 1] = d[j + 2] = v;
+    }
+  } else if (filter === 'blanca') {
     // fondo blanco por canal (corrige iluminación y balance de blancos), trazo oscuro, conserva color del marcador
     const R = new Float32Array(n), G = new Float32Array(n), B = new Float32Array(n);
     for (let i = 0, j = 0; i < n; i++, j += 4) { R[i] = d[j]; G[i] = d[j + 1]; B[i] = d[j + 2]; }

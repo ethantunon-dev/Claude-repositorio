@@ -1,5 +1,5 @@
 // Service worker de Escáner Libre: todo desde caché para funcionar sin conexión.
-const VERSION = 'v1.1.1';
+const VERSION = 'v1.2.0';
 const SHELL = 'escaner-shell-' + VERSION;
 const CDN = 'escaner-cdn-v1'; // URLs con versión fija: inmutables, se conservan entre versiones
 
